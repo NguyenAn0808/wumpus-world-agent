@@ -1,30 +1,11 @@
 import time
-
-class Orientation:
-    EAST = 0
-    WEST = 1
-    NORTH = 2
-    SOUTH = 3
-
-DIRECTION_ARROWS = {
-    Orientation.EAST: '>',
-    Orientation.WEST: '<',
-    Orientation.NORTH: '^',
-    Orientation.SOUTH: 'v'
-}
-
-ORIENTATION_NAMES = {
-    Orientation.EAST: 'EAST',
-    Orientation.WEST: 'WEST',
-    Orientation.NORTH: 'NORTH',
-    Orientation.SOUTH: 'SOUTH'
-}
+from simulation.components import *
 
 def display_world(map_state: dict):
     size = map_state['size']
     state = map_state['state']
     agent_location = map_state['agent_location']
-    agent_orientation = map_state['agent_orientation']
+    agent_direction = map_state['agent_direction']
     score = map_state['score']
     game_over = map_state['game_over']
     message = map_state.get('message', '')
@@ -58,7 +39,7 @@ def display_world(map_state: dict):
             if 'G' in items: center += "G"  # Optional, hoặc cho ra hàng dưới nếu muốn
 
             if agent_location.x == x and agent_location.y == y:
-                arrow = DIRECTION_ARROWS.get(agent_orientation, '>')
+                arrow = DIRECTION_ARROWS.get(agent_direction, '>')
                 center += f"A{arrow}"
 
             row_left += f" {left:<{CELL_WIDTH-2}} |"
@@ -72,7 +53,7 @@ def display_world(map_state: dict):
 
     print("\n" + "="*40)
     print("AGENT STATUS & PERCEPTS:")
-    print(f"  Location: ({agent_location.x}, {agent_location.y}) | Orientation: {ORIENTATION_NAMES.get(agent_orientation, '?')}")
+    print(f"  Location: ({agent_location.x}, {agent_location.y}) | Direction: {DIRECTION_NAMES.get(agent_direction, '?')}")
     print(f"  Score: {score}")
     print(f"  Has Arrow: {'Yes' if map_state['agent_has_arrow'] else 'No'}")
     print(f"  Has Gold: {'Yes' if map_state['agent_has_gold'] else 'No'}")

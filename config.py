@@ -19,18 +19,9 @@ SCORES = {
     "CLIMB_FAIL": 0
 }
 
-ORIENTATION_VECTORS = {
-    Orientation.EAST: Point(-1, 0),
-    Orientation.WEST: Point(1, 0),
-    Orientation.NORTH: Point(0, 1),
-    Orientation.SOUTH: Point(0, -1)
-}
-
-
 INITIAL_AGENT_LOCATION = (0, 0)
 INITIAL_AGENT_HAS_ARROW = True
-INITIAL_AGENT_ORIENTATION = "EAST"  
-
+INITIAL_AGENT_DIRECTION = Direction.EAST 
 
 # Advanced settings
 WUMPUS_MOVE_INTERVAL = 5
