@@ -2,8 +2,8 @@ import pygame
 
 class SoundManager:
     def __init__(self):
-        self.click_sound = pygame.mixer.Sound("assets/sound.mp3")
-        self.music_path = "assets/music.mp3"
+        self.click_sound = pygame.mixer.Sound("gui/assets/sound.mp3")
+        self.music_path = "gui/assets/music.mp3"
         self.music_playing = False
         self.sound_on = True
         self.music_on = True

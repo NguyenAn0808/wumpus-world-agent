@@ -1,5 +1,6 @@
 from simulation import *
 from gui import *
+from gui.game_app.game_app import GameApp
 
 def add_percept_rules_to_kb(kb: KB, world: World, point: Point):
     """
@@ -143,4 +144,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+
+    # Test GUI
+    game = GameApp()
+    game.run()

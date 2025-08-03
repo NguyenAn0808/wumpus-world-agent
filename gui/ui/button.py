@@ -1,16 +1,17 @@
 import pygame
-from ui.sound import SoundManager
+from gui.ui.sound import SoundManager
 
 class Button:
     def __init__(self, x, y, width, height, label, on_click, app=None,
-                 bg_color=(150, 130, 110), text_color=(255, 255, 255), hover_color=(170, 150, 130)):
+                 bg_color=(255, 255, 255), text_color=(255, 255, 255), hover_color=(150, 150, 150), hover_text_color=(150, 150, 150)):
         self.rect = pygame.Rect(x, y, width, height)
         self.label = label
         self.on_click = on_click
-        self.font = pygame.font.SysFont("Papyrus", 24, bold=True)  # Use a carved-stone feel font
+        self.font = pygame.font.SysFont("perpetua", 50, bold=True)  # Use a carved-stone feel font
         self.bg_color = bg_color
         self.hover_color = hover_color
         self.text_color = text_color
+        self.hover_text_color = hover_text_color
         self.app = app
         self.hovered = False
 
@@ -21,18 +22,14 @@ class Button:
 
         # Apply hover color
         color = self.hover_color if self.hovered else self.bg_color
+        label_color = self.hover_text_color if self.hovered else self.text_color
+        
+        pygame.draw.rect(screen, color, self.rect, width=5, border_radius=15)
 
-        # Shadowed border effect
-        pygame.draw.rect(screen, (50, 40, 30), self.rect.inflate(6, 6), border_radius=12)  # Shadow border
-        pygame.draw.rect(screen, color, self.rect, border_radius=10)
+        text_surface = self.font.render(self.label, True, label_color)
+        text_rect = text_surface.get_rect(center=self.rect.center)
 
-        # Text carved effect
-        text = self.font.render(self.label, True, self.text_color)
-        text_shadow = self.font.render(self.label, True, (60, 60, 60))
-
-        text_rect = text.get_rect(center=self.rect.center)
-        screen.blit(text_shadow, (text_rect.x + 2, text_rect.y + 2))  # Shadow offset
-        screen.blit(text, text_rect)
+        screen.blit(text_surface, text_rect)
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and self.is_clicked(event.pos):
