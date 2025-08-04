@@ -4,7 +4,7 @@ import os
 from gui.screens.screen import Screen
 from gui.screens.solver_screen import SolverScreen
 from simulation.world import World
-
+from simulation.game import GamePlay
 
 MAP_PREVIEW_SIZE = 484
 MAP_AREA_TOPLEFT = (300, 50)
