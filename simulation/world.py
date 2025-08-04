@@ -35,10 +35,10 @@ class World:
         self.gold_location = None
 
         fixed_layout = {
-            Point(0, 3): {'P'},
-            Point(3, 0): {'W'},
+            Point(2, 1): {'P'},
+            Point(1, 2): {'W'},
             Point(2, 2): {'W'},
-            Point(2, 3): {'G'}
+            Point(3, 1): {'G'}
         }
 
         # 3. Áp dụng layout cố định vào self.state

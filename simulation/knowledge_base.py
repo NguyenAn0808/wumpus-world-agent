@@ -26,34 +26,42 @@ class KB:
         
         return CNF_clauses
     
-    def retract_and_tell_percept_facts(self, cell: Point, percepts: set[Percept]):
-        """
-        Rút lại các sự thật cũ về percepts tại `cell` và thêm vào các sự thật mới.
-        """
+    def retract_and_tell_percept_facts(self, cell: Point, new_percepts: set[Percept]):
         x, y = cell.x, cell.y
         
-        # Các literal có thể có về percepts tại ô này
-        breeze_pos = frozenset([Literal(f"B{x}{y}")])
-        breeze_neg = frozenset([Literal(f"B{x}{y}", negated=True)])
-        stench_pos = frozenset([Literal(f"S{x}{y}")])
-        stench_neg = frozenset([Literal(f"S{x}{y}", negated=True)])
+        # --- STENCH ---
+        stench_literal = Literal(f"S{x}{y}")
 
-        # Rút lại (xóa) các sự thật cũ
-        self.pit_rules.discard(breeze_pos)
-        self.pit_rules.discard(breeze_neg)
-        self.wumpus_rules.discard(stench_pos)
-        self.wumpus_rules.discard(stench_neg)
-
-        # Thêm vào sự thật mới
-        if Percept.BREEZE in percepts:
-            self.tell_fact(Literal(f"B{x}{y}"))
+        self.wumpus_rules.discard(frozenset([stench_literal]))
+        self.wumpus_rules.discard(frozenset([stench_literal.negate()]))
+        
+        if Percept.STENCH in new_percepts:
+            self.tell_fact(stench_literal)
         else:
-            self.tell_fact(Literal(f"B{x}{y}", negated=True))
+            self.tell_fact(stench_literal.negate())
 
-        if Percept.STENCH in percepts:
-            self.tell_fact(Literal(f"S{x}{y}"))
+        # --- BREEZE ---
+        breeze_literal = Literal(f"B{x}{y}")
+
+        self.pit_rules.discard(frozenset([breeze_literal]))
+        self.pit_rules.discard(frozenset([breeze_literal.negate()]))
+
+        if Percept.BREEZE in new_percepts:
+            self.tell_fact(breeze_literal)
         else:
-            self.tell_fact(Literal(f"S{x}{y}", negated=True))
+            self.tell_fact(breeze_literal.negate())
+            
+        # --- GLITTER ---
+        glitter_literal = Literal(f"G{x}{y}")
+        self.wumpus_rules.discard(frozenset([glitter_literal]))
+        self.pit_rules.discard(frozenset([glitter_literal]))
+        self.wumpus_rules.discard(frozenset([glitter_literal.negate()]))
+        self.pit_rules.discard(frozenset([glitter_literal.negate()]))
+
+        if Percept.GLITTER in new_percepts:
+            self.tell_fact(glitter_literal) 
+        else:
+            self.tell_fact(glitter_literal.negate())
             
     def tell(self, KB_clauses : set[Clause], is_wumpus_rule: bool):
         """

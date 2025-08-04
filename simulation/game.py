@@ -32,7 +32,7 @@ class GamePlay:
 
     def __init__(self, display_callback):
         print("-----WUMPUS WORLD AGENT-----\n")
-        self.world = World(debug_map=True)
+        self.world = World(debug_map=False)
         
         start_pos = INITIAL_AGENT_LOCATION
         start_dir = INITIAL_AGENT_DIRECTION
@@ -97,7 +97,6 @@ class GamePlay:
         if self.agent.just_encountered_danger and self.agent.planned_action:
             print(f"--- DANGER PERCEPT AT {self.agent.location}! Clearing old plan: {[a.name for a in self.agent.planned_action]} ---")
             self.agent.planned_action.clear()
-            # Reset cờ sau khi đã xử lý
             self.agent.just_encountered_danger = False
 
         if not self.agent.planned_action:
@@ -179,20 +178,32 @@ class GamePlay:
 
     def update_KB_and_inference(self):
         print(f"\n--- Agent at {self.agent.location} is thinking (Iterative Inference) ---")
-        
+
+        cells_to_check = self.agent.get_frontier_cells().copy()
+
+        if self.agent.needs_full_rethink:
+            print("--- Full rethink triggered! Checking all uncertain cells. ---")
+            # Lấy tất cả các ô đã biết nhưng chưa đi vào và chưa chắc chắn
+            all_known_cells = self.agent.safe_cells.union(self.agent.frontier_cells)
+            cells_to_check.update(all_known_cells - self.agent.visited_cells)
+            self.agent.needs_full_rethink = False 
+
         while True:
             newly_found_info = False
-            
-            frontier = self.agent.get_frontier_cells().copy() 
-            
-            for cell in frontier:
+        
+            for cell in list(cells_to_check):
+                
+                print(f"DEBUG: Checking cell {cell}")
+                is_w_false = self.inference.ask_Wumpus(self.kb.wumpus_rules, Literal(f"W{cell.x}{cell.y}", negated=True))
+                is_p_false = self.inference.ask_Pit(self.kb.pit_rules, Literal(f"P{cell.x}{cell.y}", negated=True))
+                print(f"DEBUG: Is Wumpus false? {is_w_false}. Is Pit false? {is_p_false}")
                 # Tìm ô an toàn mới
                 if cell not in self.agent.safe_cells:
                     if self.inference.ask_safe(self.kb.wumpus_rules, self.kb.pit_rules, cell):
                         print(f"INFERRED NEW SAFE CELL: {cell}")
                         self.agent.safe_cells.add(cell)
-                        self.kb.tell_fact(Literal(f"W{cell.x}{cell.y}", negated=True))
-                        self.kb.tell_fact(Literal(f"P{cell.x}{cell.y}", negated=True))
+                        # self.kb.tell_fact(Literal(f"W{cell.x}{cell.y}", negated=True))
+                        # self.kb.tell_fact(Literal(f"P{cell.x}{cell.y}", negated=True))
                         newly_found_info = True
 
                 # Tìm Wumpus mới
@@ -200,7 +211,7 @@ class GamePlay:
                     if self.inference.ask_Wumpus(self.kb.wumpus_rules, Literal(f"W{cell.x}{cell.y}")):
                         print(f"INFERRED NEW WUMPUS: {cell}")
                         self.agent.proven_wumpuses.add(cell)
-                        self.kb.tell_fact(Literal(f"W{cell.x}{cell.y}"))
+                        # self.kb.tell_fact(Literal(f"W{cell.x}{cell.y}"))
                         newly_found_info = True
 
                 # Tìm Pit mới
@@ -208,7 +219,7 @@ class GamePlay:
                     if self.inference.ask_Pit(self.kb.pit_rules, Literal(f"P{cell.x}{cell.y}")):
                         print(f"INFERRED NEW PIT: {cell}")
                         self.agent.proven_pits.add(cell)
-                        self.kb.tell_fact(Literal(f"P{cell.x}{cell.y}"))
+                        # self.kb.tell_fact(Literal(f"P{cell.x}{cell.y}"))
                         newly_found_info = True
 
             if not newly_found_info:
@@ -231,6 +242,7 @@ class GamePlay:
             if Percept.GLITTER in self.world.get_percepts(self.agent.location):
                 self.agent.grab_gold()
                 self.agent.score += SCORES["GRAB_GOLD"]
+                self.world.remove_gold(self.agent.location)
                 self.message = "Agent grabbed the GOLD!"
             else:
                 self.message = "Agent tried to grab, but there is no gold here."
@@ -262,12 +274,15 @@ class GamePlay:
                 shot_path.append(path_pos)
                 path_pos += DIRECTION_VECTORS[self.agent.direction]
 
+            wumpus_killed = False 
+            killed_wumpus_pos = None
+
             for pos in shot_path:
                 if 'W' in self.world.state[pos.y][pos.x]:
                     self.world.state[pos.y][pos.x].remove('W')
                     wumpus_killed = True
                     killed_wumpus_pos = pos
-                    # Cập nhật lại Stench cho các ô xung quanh
+
                     self.world.remove_stench(killed_wumpus_pos)
                     break 
 
@@ -275,23 +290,18 @@ class GamePlay:
                 self.message = "Agent shot an arrow. A loud SCREAM is heard!"
                 print(f"--- {self.message} ---")
 
-                killed_wumpus_literal = Literal(f"W{killed_wumpus_pos.x}{killed_wumpus_pos.y}", negated=True)
-                self.kb.tell_fact(killed_wumpus_literal)
-
-                self.agent.proven_wumpuses.discard(killed_wumpus_pos)
-
-                self.agent.process_scream(self.kb)
-                print("Agent notes the scream. It will re-evaluate its surroundings based on new percepts.")
-                
-                # Agent cannot know the exactly pos of Wumpus (just hear Scream)
+                self.agent.planned_action.clear()
+                self.agent.needs_full_rethink = True
             else:
                 self.message = "Agent shot an arrow into the darkness... and missed."
+
                 for pos in shot_path:
                     wumpus_literal = Literal(f"W{pos.x}{pos.y}", negated=True)
                     self.kb.tell_fact(wumpus_literal)
                     self.agent.proven_wumpuses.discard(pos)
 
             self.agent.planned_action.clear()
+            self.agent.needs_full_rethink = True
         else:
             self.agent.climb_out()
 

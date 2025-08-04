@@ -18,7 +18,7 @@ class InferenceEngine:
         """
         # To prove KB ╞ α, we check if (KB ∧ ¬α) is unsatisfiable.
         clauses = KB.union({frozenset([alpha.negate()])})
-        return not self._dpll_satisfiable(clauses)
+        return not self.dpll_satisfiable(clauses)
 
     def ask_Pit(self, KB: set[Clause], alpha: Literal) -> bool:
         """
@@ -27,7 +27,7 @@ class InferenceEngine:
         """
         # To prove KB ╞ α, we check if (KB ∧ ¬α) is unsatisfiable.
         clauses = KB.union({frozenset([alpha.negate()])})
-        return not self._dpll_satisfiable(clauses)
+        return not self.dpll_satisfiable(clauses)
     
     def ask_safe(self, wumpus_kb: set[Clause], pit_kb: set[Clause], cell: Point) -> bool:
         """
@@ -142,7 +142,7 @@ class InferenceEngine:
         """
         all_satisfied = True
         for clause in clauses:
-            clause_value = self._evaluate_clause(clause, model)
+            clause_value = self.evaluate_clause(clause, model)
             if clause_value is False:
                 return False, True # Found a definitively false clause, short-circuit.
             if clause_value is None:
@@ -212,7 +212,7 @@ class InferenceEngine:
     def find_unit_clause(self, clauses: list[Clause], model: dict[str, bool]):
         """Finds a clause that has been reduced to a single unassigned literal."""
         for clause in clauses:
-            if self._evaluate_clause(clause, model) is None: # Only check unresolved clauses
+            if self.evaluate_clause(clause, model) is None: # Only check unresolved clauses
                 unassigned_literal = None
                 num_unassigned = 0
                 for literal in clause:
@@ -235,7 +235,7 @@ class InferenceEngine:
         # Count occurrences of unassigned symbols in unresolved clauses
         counter = Counter()
         for clause in clauses:
-            if self._evaluate_clause(clause, model) is None:
+            if self.evaluate_clause(clause, model) is None:
                 for literal in clause:
                     if literal.name in unassigned_symbols:
                         counter[literal.name] += 1

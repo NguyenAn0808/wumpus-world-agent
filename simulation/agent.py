@@ -30,15 +30,17 @@ class Agent:
 
         self.current_percepts: set[Percept] = set()
         self.just_encountered_danger = False
+        self.needs_full_rethink = False
 
     def update_percepts(self, percepts: set[Percept]):
+        has_new_danger = (Percept.STENCH in percepts or Percept.BREEZE in percepts) and \
+                         not (Percept.STENCH in self.current_percepts or Percept.BREEZE in self.current_percepts)
+        
+        if has_new_danger:
+            self.just_encountered_danger = True
+
         self.current_percepts = percepts
 
-        dangerous_percepts = {Percept.STENCH, Percept.BREEZE}
-        if not self.current_percepts.isdisjoint(dangerous_percepts):
-            self.just_encountered_danger = True
-        else:
-            self.just_encountered_danger = False
 
     def get_neighbors(self, pos: Point) -> list[tuple[Point, Direction]]:
         neighbors = []
@@ -213,23 +215,41 @@ class Agent:
             if direction:
                 direction_count[direction] += 1
 
-        max_count = max(direction_count.values())
+        max_count = max(direction_count.values()) if direction_count else 0
 
-        if max_count == 0:
-            print("No targets are in a straight line to shoot.")
-            return
+        shooting_direction = None
+        if max_count > 0:
+            # Logic cũ: Tìm hướng tốt nhất dựa trên số lượng ô đáng ngờ
+            best_directions = [d for d, count in direction_count.items() if count == max_count]
+            if len(best_directions) > 1:
+                best_directions.sort(key=lambda d: len(self.get_turn_decision(self.direction, d)))
+            shooting_direction = best_directions[0]
+            print(f"Agent identified best risky shot direction: {shooting_direction.name}")
+        else:
+            print("No optimal shooting direction found. Random shot regarding to least cost")
         
-        best_directions = [d for d, count in direction_count.items() if count == max_count]
+            possible_shot_directions = []
+            for direction, vec in DIRECTION_VECTORS.items():
+                if is_valid(self.location + vec, self.map_size):
+                    possible_shot_directions.append(direction)
 
-        if len(best_directions) > 1:
-            best_directions.sort(key=lambda d: len(self.get_turn_decision(d)))
-        
-        shooting_direction = best_directions[0]
-        turn_actions = self.get_turn_decision(self.direction, shooting_direction)
-        self.planned_action.extend(turn_actions)
-        self.planned_action.append(Action.SHOOT)
+            if not possible_shot_directions:
+                print("Agent is completely boxed in by walls. Cannot shoot.")
+                return # Không thể bắn
 
-        print(f"Agent is stuck. Planning a risky shot towards {shooting_direction.name}. Plan: {[a.name for a in self.planned_action]}")
+            # Sắp xếp các hướng khả thi theo số lần quay ít nhất
+            possible_shot_directions.sort(key=lambda d: len(self.get_turn_decision(self.direction, d)))
+            
+            # Chọn hướng cần ít lần quay nhất
+            shooting_direction = possible_shot_directions[0]
+            print(f"Agent will shoot towards {shooting_direction.name} to gather information.")
+
+        if shooting_direction:
+            turn_actions = self.get_turn_decision(self.direction, shooting_direction)
+            self.planned_action.extend(turn_actions)
+            self.planned_action.append(Action.SHOOT)
+
+            print(f"Agent is stuck. Planning a risky shot towards {shooting_direction.name}. Plan: {[a.name for a in self.planned_action]}")
 
     def calculate_heuristic(self, pos: Point, goals: list) -> int:
         if not goals: 
@@ -271,7 +291,7 @@ class Agent:
                     next_cell = current_pos + DIRECTION_VECTORS[current_dir]
                     can_move = is_valid(next_cell, self.map_size) and \
                                (next_cell in goals or \
-                                next_cell in self.safe_cells)
+                                next_cell in self.safe_cells or next_cell in self.visited_cells)
                     
                     if can_move:
                         new_pos = next_cell
@@ -314,19 +334,6 @@ class Agent:
 
         return safe
     
-    def process_scream(self, kb: KB):
-        print("--- AGENT PROCESSING SCREAM: Resetting Stench knowledge. ---")
-        
-        clauses_to_remove = set()
-        for clause in kb.wumpus_rules:
-            if len(clause) == 1:
-                literal = list(clause)[0]
-                if literal.name.startswith('S'):
-                    clauses_to_remove.add(clause)
-        
-        kb.wumpus_rules.difference_update(clauses_to_remove)
-        print(f"Removed {len(clauses_to_remove)} Stench facts from KB.")
-        
     def choose_next_decision(self, kb: KB, inference: InferenceEngine):
         """
         Chooses the next best safe unvisited move. Shoot if no safe unvisited cell
@@ -369,41 +376,18 @@ class Agent:
             if self.planned_action:
                 return
         
-        # Option 4: Inference to find new safe cells
-        new_safe_cells = self.find_safe_cells(kb, inference)
-        print(f"Inferred new safe cells: {new_safe_cells}")
-        if new_safe_cells:
-            print(f"Plan: Deduced new safe cells: {new_safe_cells}. Exploring them.\n")
-            self.safe_cells.update(new_safe_cells)
-            self.explore_with_astar(new_safe_cells)
-            if self.planned_action:
-                return
-
-        pit_free_and_unvisited = self.get_unvisited_pit_free_cells(kb, inference) - self.safe_cells
-        if pit_free_and_unvisited:
-            print(f"Plan: Found pit-free cells to explore for Stench info: {pit_free_and_unvisited}")
-            self.explore_with_astar(pit_free_and_unvisited)
-            if self.planned_action:
-                return
-        
-        if Percept.STENCH in self.current_percepts and self.has_arrow:
-            print("Plan: Stuck next to a Stench. Considering a risky shot before retreating.")
-            self.decide_risky_shoot_action(kb, inference)
-            if self.planned_action:
-                return
-        
-        # Option 5: Shoot arrow
+        # Option 4: Shoot arrow
         if self.has_arrow:
-            if self.decide_safe_shoot_action(kb, inference): # Option 5.1 (Shoot safely)
+            if self.decide_safe_shoot_action(kb, inference): # Option 4.1 (Shoot safely)
                 print("Plan: Confirmed Wumpus. Executing safe shot.\n")
                 return 
         
-            print("Plan: No moves left, even desperate ones. Considering a risky shot.\n") # Option 5.2 (risky shot)
+            print("Plan: No moves left, even desperate ones. Considering a risky shot.\n") # Option 4.2 (risky shot)
             self.decide_risky_shoot_action(kb, inference)
             if self.planned_action:
                 return
         
-        # Option 6: Give up - return home
+        # Option 5: Give up - return home
         print("Agent has no other options. Attempting to return home to climb out.\n")
         if self.location != Point(0, 0):
             self.explore_with_astar({Point(0, 0)})

@@ -2,66 +2,88 @@ import time
 from simulation.components import *
 
 def display_world(map_state: dict):
-    size = map_state['size']
-    state = map_state['state']
-    agent_location = map_state['agent_location']
-    agent_direction = map_state['agent_direction']
-    score = map_state['score']
-    game_over = map_state['game_over']
+    size = map_state.get('size', 4)
+    state = map_state.get('state', [[]])
+    agent_location = map_state.get('agent_location', Point(0,0))
+    agent_direction = map_state.get('agent_direction', Direction.EAST)
+    score = map_state.get('score', 0)
+    stop_game = map_state.get('stop_game', False)
+    game_status = map_state.get('game_status', None)
     message = map_state.get('message', '')
 
+    safe_cells = map_state.get('safe_cells', set())
+    visited_cells = map_state.get('visited_cells', set())
+
     CELL_WIDTH = 9
-    top_border = "+" + ("-" * CELL_WIDTH + "+") * size
+    horizontal_border = "+" + ("-" * CELL_WIDTH + "+") * size
 
-    print(top_border)
+    # --- BẮT ĐẦU VẼ BẢN ĐỒ ---
+    print(horizontal_border)
+    
+    # Vòng lặp này vẽ từng hàng của bản đồ, từ trên xuống (y lớn đến y nhỏ)
     for y in range(size - 1, -1, -1):
-        row_left = "|"
-        row_center = "|"
-        row_right = "|"
+        row_1_percepts = "|"
+        row_2_objects = "|"
+        row_3_knowledge = "|"
 
+        # Vòng lặp này xây dựng nội dung cho một hàng
         for x in range(size):
+            cell_point = Point(x, y)
             items = state[y][x]
-            left = ""
-            center = ""
-            right = ""
+            
+            # Dòng 1: Percepts (Breeze, Stench)
+            percept_str = ""
+            if 'S' in items: percept_str += "S "
+            if 'B' in items: percept_str += "B"
+            row_1_percepts += f" {percept_str:<{CELL_WIDTH-2}} |"
 
-            # 1. Trái: Stench (S)
-            if 'S' in items:
-                left = "S"
-
-            # 2. Phải: Breeze (B)
-            if 'B' in items:
-                right = "B"
-
-            # 3. Giữa: Wumpus, Pit, Agent
-            if 'W' in items: center += "W"
-            if 'P' in items: center += "P"
-            if 'G' in items: center += "G"  # Optional, hoặc cho ra hàng dưới nếu muốn
-
-            if agent_location.x == x and agent_location.y == y:
+            # Dòng 2: World Objects (Wumpus, Pit, Gold, Agent)
+            center_str = ""
+            if 'W' in items: center_str += "W "
+            if 'P' in items: center_str += "P "
+            if 'G' in items: center_str += "G "
+            if agent_location == cell_point:
                 arrow = DIRECTION_ARROWS.get(agent_direction, '>')
-                center += f"A{arrow}"
+                center_str += f"A{arrow}"
+            row_2_objects += f" {center_str:^{CELL_WIDTH-2}} |"
 
-            row_left += f" {left:<{CELL_WIDTH-2}} |"
-            row_center += f" {center:^{CELL_WIDTH-2}} |"
-            row_right += f" {right:>{CELL_WIDTH-2}} |"
+            # Dòng 3: Agent Knowledge (Visited, Safe)
+            knowledge_str = ""
+            if cell_point in visited_cells:
+                knowledge_str += "V "
+            if cell_point in safe_cells and cell_point not in visited_cells:
+                knowledge_str += "OK "
+            row_3_knowledge += f" {knowledge_str:>{CELL_WIDTH-2}} |"
 
-        print(row_left)
-        print(row_center)
-        print(row_right)
-        print(top_border)
+        # In ra 3 dòng text tạo nên một hàng của bản đồ
+        print(row_1_percepts)
+        print(row_2_objects)
+        print(row_3_knowledge)
+        print(horizontal_border)
+    # --- KẾT THÚC VẼ BẢN ĐỒ (Vòng lặp for y kết thúc ở đây) ---
+
+
+    # --- BẮT ĐẦU VẼ KHỐI STATUS (Code này nằm ngoài vòng lặp) ---
+    current_percepts_set = set()
+    if is_valid(agent_location, size):
+        loc_items = state[agent_location.y][agent_location.x]
+        if 'S' in loc_items: current_percepts_set.add("Stench")
+        if 'B' in loc_items: current_percepts_set.add("Breeze")
+        if 'G' in loc_items: current_percepts_set.add("Glitter")
 
     print("\n" + "="*40)
     print("AGENT STATUS & PERCEPTS:")
     print(f"  Location: ({agent_location.x}, {agent_location.y}) | Direction: {DIRECTION_NAMES.get(agent_direction, '?')}")
     print(f"  Score: {score}")
-    print(f"  Has Arrow: {'Yes' if map_state['agent_has_arrow'] else 'No'}")
-    print(f"  Has Gold: {'Yes' if map_state['agent_has_gold'] else 'No'}")
-    print(f"  Current Percepts: {', '.join([p.name if hasattr(p, 'name') else str(p) for p in map_state.get('percepts', set())])}")
-    
+    print(f"  Has Arrow: {'Yes' if map_state.get('agent_has_arrow', False) else 'No'}")
+    print(f"  Has Gold: {'Yes' if map_state.get('agent_has_gold', False) else 'No'}")
+    print(f"  Current Percepts: {', '.join(current_percepts_set) if current_percepts_set else 'None'}")
+
     if message:
         print(f"\n  MESSAGE: {message}")
     
-    if game_over:
-        print("\n  !!! GAME OVER !!!")
-    print("="*40 + "\n")
+    if stop_game:
+        status_name = game_status.name if game_status else "CLIMB FAIL"
+        print(f"\n  !!! {status_name} !!!")
+    print("="*45 + "\n")
+    # --- KẾT THÚC VẼ KHỐI STATUS ---
