@@ -1,7 +1,9 @@
 import os
+import random
 import pygame
 from gui.ui.button import Button
-
+from gui.screens.self_play_screen import SelfPlayScreen
+from simulation.world import World
 class SelectModePopup:
     def __init__(self, app, parent_screen):
         self.app = app
@@ -43,15 +45,27 @@ class SelectModePopup:
                 self.on_player()
 
     def on_hybrid(self):
-        pass
+        self.parent.popups.clear()
+        from gui.screens.preview_map_screen import PreviewMapScreen
+        self.app.switch_screen(PreviewMapScreen(self.app, "hybrid"))
+
 
     def on_random(self):
-        pass
+        self.parent.popups.clear()
+        from gui.screens.preview_map_screen import PreviewMapScreen
+        self.app.switch_screen(PreviewMapScreen(self.app, "random"))
 
     def on_advanced(self):
-        pass
+        self.parent.popups.clear()
+        from gui.screens.preview_map_screen import PreviewMapScreen
+        self.app.switch_screen(PreviewMapScreen(self.app, "advanced"))
 
     def on_player(self):
-        pass
+        self.parent.popups.clear()
+        world = World()                # Random world generated
+        map_state = world.get_state()           # Get the agent’s initial view/state
+
+        # --- Step 3: Switch to SelfPlayScreen ---
+        self.app.switch_screen(SelfPlayScreen(self.app, map_state, world))
 
         
