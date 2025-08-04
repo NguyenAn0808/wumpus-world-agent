@@ -39,39 +39,25 @@ class InferenceEngine:
         4. We CANNOT prove it HAS a Pit (¬(KB ╞ P)).
         Conditions 3 and 4 are crucial for handling inconsistent KBs.
         """
-        # --- KIỂM TRA ĐIỀU KIỆN "KHÔNG NGUY HIỂM" ---
         
-        # 1. Chứng minh không có Wumpus
         is_wumpus_free = self.ask_Wumpus(wumpus_kb, Literal(f"W{cell.x}{cell.y}", negated=True))
         if not is_wumpus_free:
             return False # Không thể chứng minh là không có Wumpus -> Không an toàn.
 
-        # 2. Chứng minh không có Hố
         is_pit_free = self.ask_Pit(pit_kb, Literal(f"P{cell.x}{cell.y}", negated=True))
         if not is_pit_free:
             return False # Không thể chứng minh là không có Hố -> Không an toàn.
 
-        # --- KIỂM TRA CHÉO ĐỂ PHÁT HIỆN MÂU THUẪN ---
-        # Các bước này cực kỳ quan trọng nếu KB có khả năng bị mâu thuẫn.
-        # Nếu chúng ta có thể chứng minh cả ¬W và W, thì KB đã hỏng.
-        # Trong trường hợp đó, không nên tin vào kết luận "an toàn".
-
-        # 3. Kiểm tra xem có thể chứng minh CÓ Wumpus không
         is_proven_wumpus = self.ask_Wumpus(wumpus_kb, Literal(f"W{cell.x}{cell.y}", negated=False))
         if is_proven_wumpus:
-            # Chúng ta đã chứng minh được cả ¬W và W. Đây là mâu thuẫn.
-            # Không thể coi ô này là an toàn.
             print(f"WARNING: Inconsistent KB! Proved both W and ¬W for {cell}")
             return False
 
-        # 4. Kiểm tra xem có thể chứng minh CÓ Hố không
         is_proven_pit = self.ask_Pit(pit_kb, Literal(f"P{cell.x}{cell.y}", negated=False))
         if is_proven_pit:
-            # Chúng ta đã chứng minh được cả ¬P và P. Đây là mâu thuẫn.
             print(f"WARNING: Inconsistent KB! Proved both P and ¬P for {cell}")
             return False
 
-        # Nếu vượt qua tất cả các bài kiểm tra, ô này thực sự an toàn.
         return True
 
     def ask_dangerous(self, wumpus_kb: set[Clause], pit_kb: set[Clause], cell: Point) -> bool:
@@ -86,12 +72,7 @@ class InferenceEngine:
         is_pit = self.ask_Pit(pit_kb, Literal(f"P{cell.x}{cell.y}", negated=False))
         return is_pit
 
-    # ------------------------------------------------------------------
-    # INTERNAL DPLL IMPLEMENTATION
-    # The following methods replace the old PL-Resolution logic.
-    # ------------------------------------------------------------------
-
-    def _dpll_satisfiable(self, clauses: set[Clause]) -> bool:
+    def dpll_satisfiable(self, clauses: set[Clause]) -> bool:
         """
         Top-level function to check if a set of clauses is satisfiable.
         """
@@ -102,9 +83,9 @@ class InferenceEngine:
                 symbols.add(literal.name)
         
         # Start the recursive DPLL process.
-        return self._dpll(list(clauses), list(symbols), {})
+        return self.dpll(list(clauses), list(symbols), {})
     
-    def _dpll(self, clauses: list[Clause], symbols: list[str], model: dict[str, bool]) -> bool:
+    def dpll(self, clauses: list[Clause], symbols: list[str], model: dict[str, bool]) -> bool:
         """
         The recursive core of the DPLL algorithm.
         `clauses`: A list of frozensets of Literals.
@@ -113,30 +94,30 @@ class InferenceEngine:
         """
         
         # --- HEURISTIC 1: Early Termination ---
-        is_satisfied, is_falsified = self._check_clauses_status(clauses, model)
+        is_satisfied, is_falsified = self.check_clauses_status(clauses, model)
         if is_falsified:
             return False # A clause is false, this branch of the search is invalid.
         if is_satisfied:
             return True # All clauses are satisfied, we have found a valid model.
 
         # --- HEURISTIC 2: Pure Symbol ---
-        pure_symbol, value = self._find_pure_symbol(clauses, symbols, model)
+        pure_symbol, value = self.find_pure_symbol(clauses, symbols, model)
         if pure_symbol:
             new_symbols = [s for s in symbols if s != pure_symbol]
             new_model = model.copy()
             new_model[pure_symbol] = value
-            return self._dpll(clauses, new_symbols, new_model)
+            return self.dpll(clauses, new_symbols, new_model)
 
         # --- HEURISTIC 3: Unit Clause ---
-        unit_symbol, value = self._find_unit_clause(clauses, model)
+        unit_symbol, value = self.find_unit_clause(clauses, model)
         if unit_symbol:
             new_symbols = [s for s in symbols if s != unit_symbol]
             new_model = model.copy()
             new_model[unit_symbol] = value
-            return self._dpll(clauses, new_symbols, new_model)
+            return self.dpll(clauses, new_symbols, new_model)
 
         # --- Branching (Guessing with Degree Heuristic) ---
-        symbol_to_try = self._select_symbol_by_degree(clauses, symbols, model)
+        symbol_to_try = self.select_symbol_by_degree(clauses, symbols, model)
         if not symbol_to_try:
              return True # No more symbols to try, must be satisfiable.
 
@@ -145,21 +126,16 @@ class InferenceEngine:
         # Try assigning True to the chosen symbol
         model_true = model.copy()
         model_true[symbol_to_try] = True
-        if self._dpll(clauses, remaining_symbols, model_true):
+        if self.dpll(clauses, remaining_symbols, model_true):
             return True
 
-        # *** SỬA LỖI Ở ĐÂY ***
         # If assigning True fails, the result of this call is entirely dependent
         # on the result of assigning False.
         model_false = model.copy()
         model_false[symbol_to_try] = False
-        return self._dpll(clauses, remaining_symbols, model_false)
+        return self.dpll(clauses, remaining_symbols, model_false)
 
-    # ------------------------------------------------------------------
-    # DPLL HELPER METHODS
-    # ------------------------------------------------------------------
-
-    def _check_clauses_status(self, clauses: list[Clause], model: dict[str, bool]):
+    def check_clauses_status(self, clauses: list[Clause], model: dict[str, bool]):
         """
         Checks the status of all clauses against the current model.
         Returns a tuple: (all_clauses_are_satisfied, any_clause_is_falsified).
@@ -173,7 +149,7 @@ class InferenceEngine:
                 all_satisfied = False # Found an unresolved clause, so not all are satisfied yet.
         return all_satisfied, False
 
-    def _evaluate_clause(self, clause: Clause, model: dict[str, bool]):
+    def evaluate_clause(self, clause: Clause, model: dict[str, bool]):
         """
         Evaluates a single clause against the current model.
         Returns: True if the clause is satisfied.
@@ -194,7 +170,7 @@ class InferenceEngine:
         else:
             return False # All literals are assigned and all are false.
 
-    def _find_pure_symbol(self, clauses: list[Clause], symbols: list[str], model: dict[str, bool]):
+    def find_pure_symbol(self, clauses: list[Clause], symbols: list[str], model: dict[str, bool]):
         """
         Finds a symbol that only appears with one polarity (all positive or all negative)
         across all clauses that are not yet satisfied.
@@ -210,7 +186,7 @@ class InferenceEngine:
 
         for clause in clauses:
             # Chỉ xét các mệnh đề chưa được giải quyết
-            if self._evaluate_clause(clause, model) is None:
+            if self.evaluate_clause(clause, model) is None:
                 for literal in clause:
                     if literal.name in polarities:
                         # Nếu ký hiệu này đã bị đánh dấu là không thuần khiết, bỏ qua
@@ -233,7 +209,7 @@ class InferenceEngine:
         
         return None, None
 
-    def _find_unit_clause(self, clauses: list[Clause], model: dict[str, bool]):
+    def find_unit_clause(self, clauses: list[Clause], model: dict[str, bool]):
         """Finds a clause that has been reduced to a single unassigned literal."""
         for clause in clauses:
             if self._evaluate_clause(clause, model) is None: # Only check unresolved clauses
@@ -250,7 +226,7 @@ class InferenceEngine:
                     return unassigned_literal.name, value
         return None, None
 
-    def _select_symbol_by_degree(self, clauses: list[Clause], symbols: list[str], model: dict[str, bool]) -> str:
+    def select_symbol_by_degree(self, clauses: list[Clause], symbols: list[str], model: dict[str, bool]) -> str:
         """Selects the next symbol to branch on using the Degree Heuristic."""
         unassigned_symbols = [s for s in symbols if s not in model]
         if not unassigned_symbols:
