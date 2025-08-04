@@ -2,47 +2,71 @@ import config
 import random
 
 from .components import *
+from config import *
 
 class World:
-    def __init__(self, size=None, pit_prob=None, number_of_wumpus=None):
-        self.size = size if size is not None else config.MAP_SIZE
-        self.pit_prob = pit_prob if pit_prob is not None else config.PIT_PROBABILITY
-        self.number_of_wumpus = number_of_wumpus if number_of_wumpus is not None else config.NUMBER_OF_WUMPUS
-
-        self.agent_location = Point(*config.INITIAL_AGENT_LOCATION)
-        self.agent_direction = config.INITIAL_AGENT_DIRECTION
-
-        self.agent_has_gold = False
-        self.agent_has_arrow = config.INITIAL_AGENT_HAS_ARROW
-
-        self.score = 0
-        self.game_over = False
-        self.agent_action_count = 0
-        self.wumpus_killed = False
+    def __init__(self, size=None, pit_prob=None, number_of_wumpus=None, debug_map=False):
+        self.size = size if size is not None else MAP_SIZE
+        self.pit_prob = pit_prob if pit_prob is not None else PIT_PROBABILITY
+        self.number_of_wumpus = number_of_wumpus if number_of_wumpus is not None else NUMBER_OF_WUMPUS
 
         self.state = [[set() for _ in range(self.size)] for _ in range(self.size)]
         self.wumpus_locations = []
-        self.current_percepts = set()
-        self.message = ""
+        self.gold_location = None
 
+        self.debug_map = debug_map
         self.generate_map()
     
-    def _is_valid(self, point: Point) -> bool:
-        return 0 <= point.x < self.size and 0 <= point.y < self.size
-    
-    def get_adjacent_cells(self, point: Point) -> list[Point]:
-        adjacent = []
-        
-        for vec in DIRECTION_VECTORS.values():
-            adj_point = point + vec
-            if self._is_valid(adj_point):
-                adjacent.append(adj_point)
-
-        return adjacent
-    
     def generate_map(self):
+        self.state = [[set() for _ in range(self.size)] for _ in range(self.size)]
+        self.wumpus_locations = []
+        self.gold_location = None
+
+        if self.debug_map:
+            self.generate_fixed_map()
+        else:
+            self.generate_random_map()
+
+    def generate_fixed_map(self):
+        print("--- DEBUG MODE: Using a fixed map layout. ---")
+
+        self.state = [[set() for _ in range(self.size)] for _ in range(self.size)]
+        self.wumpus_locations = []
+        self.gold_location = None
+
+        fixed_layout = {
+            Point(0, 3): {'P'},
+            Point(3, 0): {'W'},
+            Point(2, 2): {'W'},
+            Point(2, 3): {'G'}
+        }
+
+        # 3. Áp dụng layout cố định vào self.state
+        for pos, items in fixed_layout.items():
+            if is_valid(pos, self.size):
+                self.state[pos.y][pos.x].update(items)
+                if 'W' in items:
+                    self.wumpus_locations.append(pos)
+                if 'G' in items:
+                    self.gold_location = pos
+        
+        if is_valid(INITIAL_AGENT_LOCATION, self.size):
+            self.state[INITIAL_AGENT_LOCATION.y][INITIAL_AGENT_LOCATION.x].clear()
+
+
+        for y in range(self.size):
+            for x in range(self.size):
+                cell = Point(x, y)
+                # Nếu ô này có Wumpus, thêm Stench vào các ô kề
+                if 'W' in self.state[y][x]:
+                    self.add_adjacent_percept(cell, 'S')
+                # Nếu ô này có Pit, thêm Breeze vào các ô kề
+                if 'P' in self.state[y][x]:
+                    self.add_adjacent_percept(cell, 'B')
+
+    def generate_random_map(self):
         cells = [Point(x, y) for x in range(self.size) for y in range(self.size)]
-        cells.remove(Point(0, 0))
+        cells.remove(INITIAL_AGENT_LOCATION)
         random.shuffle(cells)
 
         if cells:
@@ -61,31 +85,59 @@ class World:
                 self.state[cell.y][cell.x].add('P')
                 self.add_adjacent_percept(cell, 'B')
 
+        for y in range(self.size):
+            for x in range(self.size):
+                cell = Point(x, y)
+
+                if 'W' in self.state[y][x]:
+                    self.add_adjacent_percept(cell, 'S')
+                    
+                if 'P' in self.state[y][x]:
+                    self.add_adjacent_percept(cell, 'B')
+
     def add_adjacent_percept(self, center: Point, char: str):
         for vec in DIRECTION_VECTORS.values():
             adj_point = center + vec
-            if self._is_valid(adj_point):
+            if is_valid(adj_point, self.size):
                 self.state[adj_point.y][adj_point.x].add(char)
-    
-    def get_state(self):
-        return {
-            'size': self.size,
-            'state': self.state,
-            'agent_location': self.agent_location,
-            'agent_direction': self.agent_direction,
-            'agent_has_arrow': self.agent_has_arrow,
-            'agent_has_gold': self.agent_has_gold,
-            'score': self.score,
-            'game_over': self.game_over,
-            'percepts': self.current_percepts,
-            'message': self.message,
-        }
 
-    def get_percepts(self):
+    def get_percepts(self, cell: Point) -> set[Percept]:
+        if not is_valid(cell, self.size):
+            return set()
+        
         percepts = set()
-        items = self.state[self.agent_location.y][self.agent_location.x]
+        items = self.state[cell.y][cell.x]
         if 'G' in items: percepts.add(Percept.GLITTER)
         if 'S' in items: percepts.add(Percept.STENCH)
         if 'B' in items: percepts.add(Percept.BREEZE)
-        self.current_percepts = percepts
+
         return percepts
+    
+    def kill_wumpus(self, wumpus_pos: Point):
+        if 'W' in self.state[wumpus_pos.y][wumpus_pos.x]:
+            self.state[wumpus_pos.y][wumpus_pos.x].remove('W')
+            if wumpus_pos in self.wumpus_locations:
+                self.wumpus_locations.remove(wumpus_pos)
+
+            self.remove_stench(wumpus_pos)
+            
+    def remove_stench(self, wumpus_pos: Point):
+        for cell in get_adjacent_cells(wumpus_pos, self.size):
+            has_other_wumpus_neighbor = False
+            for neighbor in get_adjacent_cells(cell, self.size):
+                if 'W' in self.state[neighbor.y][neighbor.x]:
+                    has_other_wumpus_neighbor = True
+                    break
+
+            # No more wumpuses -> Remove Stench
+            if not has_other_wumpus_neighbor:
+                self.state[cell.y][cell.x].discard('S')
+
+    def remove_gold(self, gold_pos: Point):
+        if is_valid(gold_pos, self.size):
+            cell_items = self.state[gold_pos.y][gold_pos.x]
+            
+            if 'G' in cell_items:
+                cell_items.remove('G')
+                print(f"World state: Gold removed from {gold_pos}.")
+                self.gold_location = None 

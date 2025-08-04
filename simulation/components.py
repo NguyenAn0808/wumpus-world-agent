@@ -11,10 +11,10 @@ class Direction(Enum):
     """
     Class represents all directions which Agent could face.
     """
-    EAST = 0
-    WEST = 1
-    NORTH = 2
-    SOUTH = 3
+    NORTH = 0
+    EAST = 1
+    SOUTH = 2
+    WEST = 3
 
 class Action(Enum):
     """
@@ -34,8 +34,15 @@ class Percept(Enum):
     STENCH = auto()
     BREEZE = auto()
     SCREAM = auto()
-    BUMP = auto()
+    # BUMP = auto()
     GLITTER = auto()
+
+class GameStatus(Enum):
+    IN_PROGRESS = auto()
+    CLIMB_SUCCESS = auto()
+    DEAD_BY_PIT = auto()
+    DEAD_BY_WUMPUS = auto()
+    CLIMB_FAIL = auto()
 
 @dataclass(frozen=True,eq=True)
 class Point:
@@ -52,10 +59,10 @@ class Point:
         raise ValueError("Cannot implement")
     
 @dataclass(frozen=True,eq=True)
-class Literal:
+class Literal: 
     name: str
-    negated: bool = False
-
+    negated: bool = False 
+    
     def __str__(self):
         return f"¬{self.name}" if self.negated else self.name
 
@@ -89,3 +96,30 @@ DIRECTION_ARROWS = {
     Direction.SOUTH: 'v',
     Direction.WEST:  '<',
 }
+
+TURN_LEFT_MAP = {
+    Direction.NORTH: Direction.WEST,
+    Direction.WEST: Direction.SOUTH,
+    Direction.SOUTH: Direction.EAST,
+    Direction.EAST: Direction.NORTH
+}
+
+TURN_RIGHT_MAP = {
+    Direction.NORTH: Direction.EAST,
+    Direction.EAST: Direction.SOUTH,
+    Direction.SOUTH: Direction.WEST,
+    Direction.WEST: Direction.NORTH
+}
+
+def is_valid(point: Point, size: int) -> bool:
+    return 0 <= point.x < size and 0 <= point.y < size
+
+def get_adjacent_cells(point: Point, size: int) -> list[Point]:
+    adjacent = []
+    
+    for vec in DIRECTION_VECTORS.values():
+        adj_point = point + vec
+        if is_valid(adj_point, size):
+            adjacent.append(adj_point)
+
+    return adjacent
