@@ -65,23 +65,49 @@ class GamePlay:
             self.learn_from_new_cell(current_location)
             self.agent.cells_learned_from.add(current_location)
 
+    
+    def get_game_state(self) -> dict:
+        
+        # kb_info = self.get_kb_for_display()
+        world_info = self.world.get_state() 
+
+        game_state = {
+            'size': world_info['size'],
+            'state': world_info['state'], 
+            'pit_probability': world_info['pit_probability'],
+            'number_of_wumpus': world_info['number_of_wumpus'],
+            "wumpus_locations": world_info['wumpus_locations'],
+            "gold_location": world_info['gold_location'],
+
+            # Action of Agent
+            'agent_location': self.agent.location,
+            'agent_direction': self.agent.direction,
+            'agent_has_arrow': self.agent.has_arrow,
+            'agent_has_gold': self.agent.has_gold,
+            'agent_score': self.agent.score,
+            'agent_percepts': self.agent.current_percepts,
+
+            # Gameplay
+            'message': self.message,
+            'game_status': self.status,
+            'is_game_over': self.stop_game,
+
+            'known_safe_cells': self.agent.safe_cells,
+            'known_visited_cells': self.agent.visited_cells,
+            'known_proven_wumpuses': self.agent.proven_wumpuses,
+            'known_proven_pits': self.agent.proven_pits,
+            'known_frontier_cells': self.agent.frontier_cells,
+
+            # KB
+            # 'kb_info': kb_info
+        }
+        
+        return game_state
+
+
     def display_current_state(self):
         if self.display_callback:
-            state_to_display = {
-                'size': self.world.size,
-                'state': self.world.state,
-                'agent_location': self.agent.location,
-                'agent_direction': self.agent.direction,
-                'agent_has_arrow': self.agent.has_arrow,
-                'agent_has_gold': self.agent.has_gold,
-                'score': self.agent.score,
-                'message': self.message,
-                'stop_game': self.stop_game,
-                'game_status': self.status,
-                'safe_cells': self.agent.safe_cells, 
-                'visited_cells': self.agent.visited_cells
-                # Maybe add uncertain, dangerous
-            }
+            state_to_display = self.get_game_state()
             self.display_callback(state_to_display)
 
     @property
