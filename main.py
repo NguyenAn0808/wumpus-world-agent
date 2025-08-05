@@ -11,6 +11,4 @@ def main():
     # game.run()
 
 if __name__ == "__main__":
-    # main()
-    game = GameApp()
-    game.run()  
+    main()
