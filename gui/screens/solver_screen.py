@@ -19,7 +19,7 @@ class SolverScreen(Screen):
         self.running = True
         infoObject = pygame.display.Info()
         screen_width = infoObject.current_w
-        screen_height = infoObject.current_h - 55
+        screen_height = infoObject.current_h - 65
 
         self.screen = pygame.display.set_mode((screen_width, screen_height))
         
@@ -47,6 +47,13 @@ class SolverScreen(Screen):
         self.last_agent_dir = None
 
         # Rotation transition
+        # Full turning animation logic
+        self.turning = False
+        self.turn_timer = 0.0
+        self.turn_duration = 0.2
+        self.turn_mid_frame = None
+        self.next_direction = None
+
         self.is_turning = False
         self.turn_progress = 0.0
         self.turn_duration = 0.15
@@ -171,6 +178,16 @@ class SolverScreen(Screen):
                         self.screen.blit(icon, (x, y))
 
                 if col_idx == self.agent_x and row_idx == self.agent_y:
+                    direction = self.agent_dir.name.lower()
+                    anim_dir = direction if direction in self.agent_animations else 'right'
+
+                    if self.turning and self.turn_mid_frame:
+                        frame = self.agent_animations[self.turn_mid_frame][0]
+                    else:
+                        frame = self.agent_animations[anim_dir][self.agent_frame]
+
+                    scaled_frame = pygame.transform.scale(frame, (cell_size, cell_size))
+                    self.screen.blit(scaled_frame, (x, y))
                     raw_direction = self.agent_dir.name.lower()
                     direction = raw_direction if raw_direction in self.agent_animations else 'right'
                     if direction != self.last_agent_dir:
@@ -218,14 +235,30 @@ class SolverScreen(Screen):
         self.draw_map(dt)
         self.draw_log_box()
         pygame.display.flip()
-        # Auto-solve timer
-        # self.auto_solve_timer += dt
-        # if self.auto_solve_timer >= self.auto_solve_delay and not self.map_state['game_over']:
-        #   self.auto_solve_timer = 0.0
-        #   self.auto_solve_step()
-        
-    def run(self):
-        while self.running:
-            self.handle_input()
-            self.render()
-        pygame.quit()
+        # Handle direction change and animation
+        if not self.turning and self.agent_dir.name.lower() != self.last_agent_dir:
+            transition_lookup = {
+                ('left', 'right'): 'down',
+                ('right', 'left'): 'up',
+                ('up', 'down'): 'right',
+                ('down', 'up'): 'left',
+            }
+            old_dir = self.last_agent_dir
+            new_dir = self.agent_dir.name.lower()
+            mid = transition_lookup.get((old_dir, new_dir))
+            if mid:
+                self.turning = True
+                self.turn_timer = 0.0
+                self.turn_mid_frame = mid
+                self.next_direction = new_dir
+
+        if self.turning:
+            self.turn_timer += dt
+            if self.turn_timer >= self.turn_duration:
+                self.turning = False
+                self.last_agent_dir = self.next_direction
+
+        self.auto_solve_timer += dt
+        if self.auto_solve_timer >= self.auto_solve_delay and not self.map_state.get('stop_game', False):
+            self.auto_solve_timer = 0.0
+            self.auto_solve_step()

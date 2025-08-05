@@ -11,7 +11,6 @@ GAME_AREA_WIDTH = GRID_SIZE * CELL_SIZE
 UI_PANEL_WIDTH = GAME_AREA_WIDTH // 3 # UI panel is 1/3 of the game area
 SCREEN_WIDTH = GAME_AREA_WIDTH + UI_PANEL_WIDTH
 SCREEN_HEIGHT = GRID_SIZE * CELL_SIZE
-FPS = 60
 
 class SelfPlayScreen(Screen):
     def __init__(self, app, map_state, world):
@@ -55,6 +54,12 @@ class SelfPlayScreen(Screen):
         self.move_delay = 8  # frames between continuous moves
         self.move_timer = 0
         
+        self.turning = False
+        self.turn_timer = 0.0
+        self.turn_duration = 0.2  # seconds
+        self.turn_mid_frame = None
+        self.next_direction = None
+
 
     def get_pixel_pos_from_grid(self, grid_x, grid_y):
         """Converts grid coordinates (bottom-left origin) to pixel coordinates (top-left origin)."""
@@ -121,33 +126,41 @@ class SelfPlayScreen(Screen):
                     frames.append(placeholder)
                 break
         return frames
+    
+    def get_turn_transition_frame(self, from_dir, to_dir):
+        mid_map = {
+            ('left', 'right'): 'down',
+            ('right', 'left'): 'up',
+            ('up', 'down'): 'right',
+            ('down', 'up'): 'left'
+        }
+        return mid_map.get((from_dir, to_dir))
 
-    def update_animations(self):
-        """Updates all animation frames for characters."""
-        # Update agent animation
+    def update_animations(self, dt):
+        if self.turning:
+            self.turn_timer += dt
+            if self.turn_timer >= self.turn_duration:
+                self.turning = False
+                self.agent_direction = self.next_direction
+                self.turn_mid_frame = None
+            return  # Skip walking animation during turn
         if self.is_moving:
-            self.agent_anim_timer += self.clock.get_time()  # milliseconds since last frame
-            if self.is_moving:
-                if self.agent_anim_timer >= 100:  # switch frame every 100ms
-                    self.agent_frame_index = (self.agent_frame_index + 1) % len(self.agent_frames[self.agent_direction])
-                    self.agent_anim_timer = 0
-            else:
-                self.agent_frame_index = 0
-
-            if self.agent_anim_timer >= self.agent_anim_speed:
+            self.agent_anim_timer += dt
+            if self.agent_anim_timer >= 0.1:
                 self.agent_frame_index = (self.agent_frame_index + 1) % len(self.agent_frames[self.agent_direction])
                 self.agent_anim_timer = 0
         else:
-            # Keep the last frame instead of resetting to 0 immediately
-            self.agent_anim_timer += 1
-            if self.agent_anim_timer >= self.agent_anim_speed * 2:
-                self.agent_frame_index = 0
-                self.agent_anim_timer = 0
+            self.agent_frame_index = 0
+
+        self.wumpus_anim_timer += dt
+        if self.wumpus_anim_timer >= 0.15:
+            self.wumpus_frame_index = (self.wumpus_frame_index + 1) % len(self.wumpus_frames)
+            self.wumpus_anim_timer = 0
 
 
-        # Update Wumpus animation
-        self.wumpus_anim_timer += 1
-        if self.wumpus_anim_timer >= self.wumpus_anim_speed:
+        # Wumpus animation
+        self.wumpus_anim_timer += dt
+        if self.wumpus_anim_timer >= 0.1:
             self.wumpus_frame_index = (self.wumpus_frame_index + 1) % len(self.wumpus_frames)
             self.wumpus_anim_timer = 0
 
@@ -169,8 +182,10 @@ class SelfPlayScreen(Screen):
                 pygame.draw.rect(self.screen, (45, 102, 91), rect) # Cell background
                 pygame.draw.rect(self.screen, (35, 80, 72), rect, 2) # Cell border
 
+                # TODO: Draw Borders for outer edges 
+                
+                
                 # --- Draw Items from map_state ---
-                # Note: map_state needs to be a 2D list/array representing the grid
                 state = self.map_state['state']
                 if y < len(state) and x < len(state[y]):
                     cell_content = state[y][x]
@@ -185,9 +200,14 @@ class SelfPlayScreen(Screen):
                             self.screen.blit(icon, rect.topleft)
 
         # --- Draw Agent ---
-        agent_frame = self.agent_frames[self.agent_direction][self.agent_frame_index]
-        scaled_agent = pygame.transform.scale(agent_frame, (CELL_SIZE, CELL_SIZE))
+        if self.turning and self.turn_mid_frame:
+            frame = self.agent_frames[self.turn_mid_frame][0]
+        else:
+            frame = self.agent_frames[self.agent_direction][self.agent_frame_index]
+
+        scaled_agent = pygame.transform.scale(frame, (CELL_SIZE, CELL_SIZE))
         self.screen.blit(scaled_agent, self.agent_pix_pos)
+
 
     def draw_ui_panel(self):
         """Draws the UI panel on the right side of the screen."""
@@ -211,55 +231,56 @@ class SelfPlayScreen(Screen):
             self.action_log.pop(0)
 
     def handle_input(self):
-        """Handles all user input for the screen (manual agent control)."""
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
+        desired_dir = None
         self.is_moving = False
 
         if keys[pygame.K_UP]:
-            self.agent_direction = "up"
+            desired_dir = 'up'
             dy = 1
         elif keys[pygame.K_DOWN]:
-            self.agent_direction = "down"
+            desired_dir = 'down'
             dy = -1
         elif keys[pygame.K_LEFT]:
-            self.agent_direction = "left"
+            desired_dir = 'left'
             dx = -1
         elif keys[pygame.K_RIGHT]:
-            self.agent_direction = "right"
+            desired_dir = 'right'
             dx = 1
 
-        if dx != 0 or dy != 0:
+        # Handle turning before movement
+        if desired_dir and desired_dir != self.agent_direction and not self.turning:
+            self.turning = True
+            self.turn_timer = 0.0
+            self.turn_mid_frame = self.get_turn_transition_frame(self.agent_direction, desired_dir)
+            self.next_direction = desired_dir
+            self.is_moving = False
+        elif not self.turning and desired_dir:
+            # Already facing the right direction → allow movement
             self.is_moving = True
             self.move_timer += 1
             if self.move_timer >= self.move_delay:
                 self.move_agent(dx, dy)
                 self.move_timer = 0
         else:
-            # Allow for single-step moves by resetting timer when key is released
+            # Reset move timer if no key is pressed
             self.move_timer = self.move_delay
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                self.running = False # Set running to false to exit the loop
+                self.running = False
                 if hasattr(self.app, 'quit'):
                     self.app.quit()
 
-    def update(self):
-        """Update all game logic for a single frame."""
+
+    def update(self, dt):
         self.handle_input()
-        self.update_animations()
+        self.update_animations(dt)
 
     def render(self):
-        """Draws everything to the screen for a single frame."""
-        self.screen.fill((10, 10, 20)) # Dark blue background
+        self.screen.fill((190, 212, 184))
         self.draw_game_area()
         self.draw_ui_panel()
         pygame.display.flip()
 
-    def run(self):
-        """Main loop for this screen."""
-        while self.running:
-            self.clock.tick(FPS)
-            self.update()
-            self.render()
