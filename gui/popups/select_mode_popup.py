@@ -62,10 +62,11 @@ class SelectModePopup:
 
     def on_player(self):
         self.parent.popups.clear()
-        world = World()                # Random world generated
+        world = World(8)                # Random world generated
         map_state = world.get_state()           # Get the agent’s initial view/state
 
         # --- Step 3: Switch to SelfPlayScreen ---
         self.app.switch_screen(SelfPlayScreen(self.app, map_state, world))
+        
 
         
