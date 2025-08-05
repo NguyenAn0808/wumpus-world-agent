@@ -78,7 +78,13 @@ class CreditsScreen(Screen):
         from gui.screens.menu_screen import MenuScreen
         self.app.switch_screen(MenuScreen(self.app))
 
-    
+    def run(self):
+        self.running = True
+        while self.running:
+            self.handle_input()
+            self.render()
+            pygame.display.flip()
+            self.app.clock.tick(60)
     
 
 
