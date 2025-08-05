@@ -21,16 +21,13 @@ class GameApp:
 
         # Call Screen
         self.current_screen = LoadingScreen(self)
+        self.current_screen.run()
 
-    def run(self):
-        while True:
-            self.current_screen.handle_input()
-            self.current_screen.render()
-            pygame.display.flip()
-            self.clock.tick(60)
-
-    def switch_screen(self, new_screen):
+    def switch_screen(self, new_screen, auto_run=True):
         self.current_screen = new_screen
+        if auto_run:
+            new_screen.run()
+
 
 
 

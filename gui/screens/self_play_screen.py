@@ -231,6 +231,14 @@ class SelfPlayScreen(Screen):
             self.action_log.pop(0)
 
     def handle_input(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                if hasattr(self.app, 'quit'):
+                    self.app.quit()
+
+
+    def update(self, dt):
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
         desired_dir = None
@@ -267,20 +275,11 @@ class SelfPlayScreen(Screen):
             # Reset move timer if no key is pressed
             self.move_timer = self.move_delay
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
-                if hasattr(self.app, 'quit'):
-                    self.app.quit()
-
-
-    def update(self, dt):
-        self.handle_input()
         self.update_animations(dt)
 
     def render(self):
         self.screen.fill((190, 212, 184))
         self.draw_game_area()
         self.draw_ui_panel()
-        pygame.display.flip()
+    
 

@@ -79,12 +79,22 @@ class MenuScreen(Screen):
 
     def on_instructions(self):
         from gui.screens.instruction_screen import InstructionScreen
+        self.running = False
         self.app.switch_screen(InstructionScreen(self.app))
 
     def on_credits(self):
         from gui.screens.credit_screen import CreditsScreen
+        self.running = False
         self.app.switch_screen(CreditsScreen(self.app))
 
     def on_quit(self):
         pygame.quit()
         exit()
+
+    def run(self):
+        self.running = True
+        while True:
+            self.render()
+            self.handle_input()
+            pygame.display.flip()
+            self.app.clock.tick(60)

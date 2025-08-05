@@ -262,3 +262,17 @@ class SolverScreen(Screen):
         if self.auto_solve_timer >= self.auto_solve_delay and not self.map_state.get('stop_game', False):
             self.auto_solve_timer = 0.0
             self.auto_solve_step()
+
+    def run(self):
+        self.running = True
+        while self.running:
+            self.handle_input()
+            self.render()
+            pygame.display.flip()
+            self.app.clock.tick(60)
+            
+            if not self.map_state.get('game_over', False):
+                self.auto_solve_timer += self.clock.get_time() / 1000.0
+                if self.auto_solve_timer >= self.auto_solve_delay:
+                    self.auto_solve_timer = 0.0
+                    self.auto_solve_step()

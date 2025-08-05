@@ -51,7 +51,34 @@ class LoadingScreen(Screen):
             if self.video:
                 self.video.release()
             self.app.switch_screen(MenuScreen(self.app))
+            
+
 
     def __del__(self):
         if hasattr(self, 'video') and self.video and self.video.isOpened():
             self.video.release()
+
+    def run(self):
+        clock = pygame.time.Clock()
+        self.running = True
+
+        while self.running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    pygame.quit()
+                    return
+
+            self.handle_input()
+            self.render()
+            pygame.display.flip()
+            clock.tick(60)
+
+            if time.time() - self.start_time > self.duration:
+                self.running = False
+
+        if self.video:
+            self.video.release()
+            
+        self.app.switch_screen(MenuScreen(self.app))
+
