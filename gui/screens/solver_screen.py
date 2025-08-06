@@ -276,7 +276,7 @@ class SolverScreen(Screen):
             self.app.clock.tick(60)
 
             # Stop if game is done
-            if self.map_state.get('is_game_over', False):
+            if self.map_state.get('game_over', False):
                 self.running = False
                 return  # or switch to menu
 
