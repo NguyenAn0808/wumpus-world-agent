@@ -56,6 +56,26 @@ class SolverScreen(Screen):
         self.wumpus_frame_timer = 0.0
         self.wumpus_frame_delay = 0.1
 
+        # Arrow animation
+        self.arrow_animation = {
+            "active": False,
+            "start_pos": None,
+            "direction": None,
+            "progress": 0.0,
+            "path": [],
+            "current_index": 0,
+            "speed": 6.0  # cells per second
+        }
+        self.arrow_icon = pygame.image.load("assets/arrow.png").convert_alpha()
+        self.grab_animation_timer = 0.0  # Timer for grab animation
+        self.shoot_frames = self.load_agent_shoot()
+        self.grab_frames = self.load_agent_grab()
+        self.shoot_anim_timer = 0.0
+        self.grab_anim_timer = 0.0
+        self.shoot_anim_duration = 0.3  # seconds
+        self.grab_anim_duration = 0.3
+        self.last_action = None
+        self.shot_path = None  # Path for the arrow shot
         # Logs
         # self.logs = self.generate_logs()
         self.log_scroll = 0
@@ -84,6 +104,8 @@ class SolverScreen(Screen):
         self.agent_x = state_dict['agent_location'].x
         self.agent_y = state_dict['agent_location'].y
         self.agent_dir = state_dict['agent_direction']
+        self.last_action = state_dict['last_action']
+        self.shoot_path = state_dict.get('shot_path', None)
 
     def auto_solve_step(self):
         self.gameloop.run_single_action()
@@ -99,8 +121,8 @@ class SolverScreen(Screen):
         return {
             'P': load('pit'),
             'G': load('gold'),
-            'S': load('stench'),
-            'B': load('breeze')
+            'S': load('letter-s'),
+            'B': load('letter-b'),
         }
 
     def load_agent_animations(self):
@@ -117,6 +139,30 @@ class SolverScreen(Screen):
                     break
             animations[direction] = frames
         return animations
+    
+    def load_agent_shoot(self):
+        frames = []
+        i = 0
+        while True:
+            path = f"assets/agent/shoot/{i}.png"
+            try:
+                frames.append(pygame.image.load(path).convert_alpha())
+                i += 1
+            except FileNotFoundError:
+                break
+        return frames
+    
+    def load_agent_grab(self):
+        frames = []
+        i = 0
+        while True:
+            path = f"assets/agent/grab/{i}.png"
+            try:
+                frames.append(pygame.image.load(path).convert_alpha())
+                i += 1
+            except FileNotFoundError:
+                break
+        return frames
 
     def load_wumpus_idle(self):
         frames = []
@@ -141,11 +187,16 @@ class SolverScreen(Screen):
     def get_turn_angle(self, from_dir, to_dir):
         angles = {'up': 0, 'right': -90, 'down': -180, 'left': -270}
         return (angles[to_dir] - angles[from_dir]) % 360
-
+    
     def draw_map(self, dt):
         MAP_PREVIEW_SIZE = 512
         MAP_TOPLEFT = (20, 44)
         cell_size = MAP_PREVIEW_SIZE // self.map_state['size']
+
+        agent_pos = self.map_state['agent_location']
+        agent_dir_enum = self.map_state['agent_direction']
+        direction = agent_dir_enum.name.lower() if agent_dir_enum else 'right'
+        anim_dir = DIRECTION_TO_ANIMATION.get(direction, 'right')
 
         for row_idx, row in enumerate(self.map_state['state']):
             for col_idx, cell in enumerate(row):
@@ -159,36 +210,46 @@ class SolverScreen(Screen):
                 # Draw cell symbols
                 for symbol in cell:
                     if symbol == 'W':
-                        frame = pygame.transform.scale(
-                            self.wumpus_idle_frames[self.wumpus_frame_index], (cell_size, cell_size))
+                        frame = pygame.transform.scale(self.wumpus_idle_frames[self.wumpus_frame_index], (cell_size, cell_size))
                         self.screen.blit(frame, (x, y))
                     elif symbol in self.cell_icons:
-                        icon = pygame.transform.scale(self.cell_icons[symbol], (cell_size, cell_size))
-                        self.screen.blit(icon, (x, y))
+                        icon = self.cell_icons[symbol]
+                        if symbol in ['B', 'S']:
+                            icon = pygame.transform.scale(icon, (cell_size // 2, cell_size // 2))
+                            self.screen.blit(icon, (x, y))
+                        else:
+                            icon = pygame.transform.scale(icon, (cell_size, cell_size))
+                            self.screen.blit(icon, (x, y))
 
-                # Draw agent if on this cell
-                agent_pos = self.map_state['agent_location']
-                agent_dir_enum = self.map_state['agent_direction']
-                direction = agent_dir_enum.name.lower() if agent_dir_enum else 'right'
-                anim_dir = DIRECTION_TO_ANIMATION.get(direction, 'right')
+        # Draw arrow animation first so it's under the agent
+        if self.arrow_animation["active"]:
+            self.animate_arrow(dt, cell_size, MAP_TOPLEFT)
 
-                if col_idx == agent_pos.x and row_idx == agent_pos.y:
-                    frames = self.agent_animations.get(anim_dir, [])
-                    if not frames:
-                        print(f"[WARN] No animation frames for direction: {anim_dir}")
-                        return
+        # Draw agent at current position
+        x = MAP_TOPLEFT[0] + agent_pos.x * cell_size
+        y = MAP_TOPLEFT[1] + (self.map_state['size'] - 1 - agent_pos.y) * cell_size
 
-                    frame = frames[self.agent_frame % len(frames)]
-                    scaled_frame = pygame.transform.scale(frame, (cell_size, cell_size))
+        if self.shoot_anim_timer > 0:
+            frame_list = self.shoot_frames
+            self.shoot_anim_timer -= dt
+        elif self.grab_anim_timer > 0:
+            frame_list = self.grab_frames
+            self.grab_anim_timer -= dt
+        else:
+            frame_list = self.agent_animations.get(anim_dir, [])
 
-                    if self.is_turning:
-                        angle = self.get_turn_angle(self.prev_dir, direction)
-                        interpolated_angle = angle * self.turn_progress
-                        rotated_frame = pygame.transform.rotate(scaled_frame, -interpolated_angle)
-                        frame_rect = rotated_frame.get_rect(center=(x + cell_size // 2, y + cell_size // 2))
-                        self.screen.blit(rotated_frame, frame_rect.topleft)
-                    else:
-                        self.screen.blit(scaled_frame, (x, y))
+        if frame_list:
+            frame = frame_list[self.agent_frame % len(frame_list)]
+            scaled_frame = pygame.transform.scale(frame, (cell_size, cell_size))
+
+            if self.is_turning:
+                angle = self.get_turn_angle(self.prev_dir, direction)
+                interpolated_angle = angle * self.turn_progress
+                rotated_frame = pygame.transform.rotate(scaled_frame, -interpolated_angle)
+                frame_rect = rotated_frame.get_rect(center=(x + cell_size // 2, y + cell_size // 2))
+                self.screen.blit(rotated_frame, frame_rect.topleft)
+            else:
+                self.screen.blit(scaled_frame, (x, y))
 
 
     def handle_input(self):
@@ -210,26 +271,26 @@ class SolverScreen(Screen):
         self.render_with_dt(dt)
 
     def update_animation(self, dt):
-        # --- Get current agent direction from latest game state ---
+    # Get current direction
         agent_dir_enum = self.map_state['agent_direction']
         agent_dir = agent_dir_enum.name.lower() if agent_dir_enum else 'right'
 
-        # --- Wumpus idle animation ---
+        # --- Wumpus idle ---
         self.wumpus_frame_timer += dt
         if self.wumpus_frame_timer >= self.wumpus_frame_delay:
             self.wumpus_frame_timer = 0.0
             self.wumpus_frame_index = (self.wumpus_frame_index + 1) % len(self.wumpus_idle_frames)
 
-        # --- Agent walking animation ---
+        # --- Agent walking ---
         direction = DIRECTION_TO_ANIMATION.get(agent_dir, 'right')
         frames = self.agent_animations.get(direction, [])
-        if frames:  # Only update if there are frames
+        if frames:
             self.agent_frame_timer += dt
             if self.agent_frame_timer >= self.agent_frame_delay:
                 self.agent_frame_timer = 0.0
                 self.agent_frame = (self.agent_frame + 1) % len(frames)
 
-        # --- Turning animation ---
+        # --- Turning ---
         if not self.turning and agent_dir != self.last_agent_dir:
             transition_lookup = {
                 ('left', 'right'): 'down',
@@ -251,6 +312,63 @@ class SolverScreen(Screen):
                 self.last_agent_dir = self.next_direction
 
         self.last_agent_dir = agent_dir
+
+        # --- GRAB animation trigger ---
+        if self.last_action == "GRAB":
+            self.grab_anim_timer = self.grab_anim_duration
+
+        # --- SHOOT animation trigger ---
+        if self.last_action == "SHOOT":
+            if self.shoot_anim_timer <= 0 and not self.arrow_animation["active"]:
+                # 1. First time entering SHOOT: start shooting animation
+                if self.shoot_path and self.shoot_anim_timer == 0.0:
+                    self.shoot_anim_timer = self.shoot_anim_duration
+
+                # 2. When shoot animation is finished: start arrow
+                elif self.shoot_anim_timer <= 0:
+                    self.arrow_animation["active"] = True
+                    self.arrow_animation["path"] = self.shoot_path.copy()
+                    self.arrow_animation["current_index"] = 0
+                    self.arrow_animation["progress"] = 0.0
+                    self.arrow_animation["direction"] = agent_dir
+
+        if self.last_action in ["SHOOT", "GRAB"] and self.shoot_anim_timer <= 0 and not self.arrow_animation["active"]:
+            self.last_action = None
+
+
+
+
+    def animate_arrow(self, dt, cell_size, top_left):
+        anim = self.arrow_animation
+        path = anim.get("path")
+        if not path or anim["current_index"] >= len(path):
+            anim["active"] = False
+            return
+
+        anim["progress"] += anim["speed"] * dt
+
+        # Move to next cell if enough progress
+        if anim["progress"] >= 1.0:
+            anim["progress"] = 0.0
+            anim["current_index"] += 1
+
+        # Stop if finished
+        if anim["current_index"] >= len(path):
+            anim["active"] = False
+            return
+
+        pos = path[anim["current_index"]]
+        pixel_x = top_left[0] + pos.x * cell_size
+        pixel_y = top_left[1] + (self.map_state["size"] - 1 - pos.y) * cell_size
+
+        # Rotate arrow image
+        arrow_img = pygame.transform.scale(self.arrow_icon, (cell_size, cell_size))
+        rotation = {
+            'north': 90, 'south': -90, 'west': 180, 'east': 0
+        }[self.arrow_animation["direction"]]
+        rotated = pygame.transform.rotate(arrow_img, rotation)
+        self.screen.blit(rotated, (pixel_x, pixel_y))
+
 
 
 
@@ -276,7 +394,7 @@ class SolverScreen(Screen):
             self.app.clock.tick(60)
 
             # Stop if game is done
-            if self.map_state.get('is_game_over', False):
+            if self.map_state.get('game_over', False):
                 self.running = False
                 return  # or switch to menu
 

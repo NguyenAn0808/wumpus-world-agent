@@ -35,6 +35,7 @@ class GamePlay:
         
         start_pos = INITIAL_AGENT_LOCATION
         start_dir = INITIAL_AGENT_DIRECTION
+        self.last_shot_path = None
 
         self.agent = agent
 
@@ -85,6 +86,8 @@ class GamePlay:
             'known_proven_pits': self.agent.proven_pits,
             'known_frontier_cells': self.agent.frontier_cells,
 
+            'last_action': self.agent.last_action.name if self.agent.last_action else None,
+            'shot_path': getattr(self, "last_shot_path", None)
             # KB
             # 'kb_info': kb_info
         }
@@ -299,6 +302,8 @@ class GamePlay:
             while is_valid(path_pos, self.world.size):
                 shot_path.append(path_pos)
                 path_pos += DIRECTION_VECTORS[self.agent.direction]
+
+            self.last_shot_path = shot_path
 
             wumpus_killed = False 
             killed_wumpus_pos = None
