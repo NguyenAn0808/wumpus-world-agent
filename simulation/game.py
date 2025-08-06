@@ -30,14 +30,14 @@ def format_kb_for_printing(kb: set) -> str:
 
 class GamePlay:
 
-    def __init__(self, display_callback):
+    def __init__(self, agent: Agent, display_callback):
         print("-----WUMPUS WORLD AGENT-----\n")
         self.world = World(debug_map=False)
         
         start_pos = INITIAL_AGENT_LOCATION
         start_dir = INITIAL_AGENT_DIRECTION
 
-        self.agent = Agent(start_pos,start_dir, self.world.size)
+        self.agent = agent
 
         self.kb = KB()
         self.inference = InferenceEngine()
@@ -90,7 +90,7 @@ class GamePlay:
             # Gameplay
             'message': self.message,
             'game_status': self.status,
-            'is_game_over': self.stop_game,
+            'stop_game': self.stop_game,
 
             'known_safe_cells': self.agent.safe_cells,
             'known_visited_cells': self.agent.visited_cells,

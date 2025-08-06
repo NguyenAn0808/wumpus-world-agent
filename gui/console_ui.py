@@ -11,8 +11,8 @@ def display_world(map_state: dict):
     game_status = map_state.get('game_status', None)
     message = map_state.get('message', '')
 
-    safe_cells = map_state.get('safe_cells', set())
-    visited_cells = map_state.get('visited_cells', set())
+    safe_cells = map_state.get('known_safe_cells', set())
+    visited_cells = map_state.get('known_visited_cells', set())
 
     CELL_WIDTH = 9
     horizontal_border = "+" + ("-" * CELL_WIDTH + "+") * size

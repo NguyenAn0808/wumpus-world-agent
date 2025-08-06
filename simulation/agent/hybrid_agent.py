@@ -1,36 +1,20 @@
-from .components import *
-from .knowledge_base import *
-from .inference import *
+from .agent import Agent
+from simulation import *
 from collections import deque
-from .world import *
 from heapq import heappush, heappop
 
-class Agent:
+class HybridAgent(Agent):
     def __init__(self, location: Point, direction: Direction, map_size: int):
-        self.map_size = map_size
-        self.location = location                 
-        self.direction = direction                
-        self.has_arrow = True                     
-        self.has_gold = False                     
-        self.last_action: Action = None                       
-        self.alive = True                         
-        self.planned_action = deque()
-        self.score = 0            
-
-        self.visited_cells: set[Point] = {location}
-        self.safe_cells: set[Point] = {location}
-
-        self.proven_wumpuses: set[Point] = set()
-        self.proven_pits: set[Point] = set()
-
-        self.cells_learned_from: set[Point] = {location}
-        self.frontier_cells: set[Point] = {
-            neighbor for neighbor, _ in self.get_neighbors(location)
-        }
-
+        super().__init__(location, direction, map_size)
         self.current_percepts: set[Percept] = set()
         self.just_encountered_danger = False
         self.needs_full_rethink = False
+
+        self.safe_cells: set[Point] = {location}
+        self.cells_learned_from: set[Point] = {location}
+
+        self.proven_wumpuses: set[Point] = set()
+        self.proven_pits: set[Point] = set()
 
     def update_percepts(self, percepts: set[Percept]):
         has_new_danger = (Percept.STENCH in percepts or Percept.BREEZE in percepts) and \
@@ -40,16 +24,12 @@ class Agent:
             self.just_encountered_danger = True
 
         self.current_percepts = percepts
-
-
-    def get_neighbors(self, pos: Point) -> list[tuple[Point, Direction]]:
-        neighbors = []
-        for direction, vec in DIRECTION_VECTORS.items():
-            next_pt = pos + vec
-            if is_valid(next_pt, self.map_size):
-                neighbors.append((next_pt, direction))
-        return neighbors
     
+    def update_KB_from_inference(self, new_safe_cells, new_proven_wumpuses, new_proven_pits):
+        self.safe_cells.update(new_safe_cells)
+        self.proven_wumpuses.update(new_proven_wumpuses)
+        self.proven_pits.update(new_proven_pits)
+
     def get_frontier_cells(self) -> set[Point]:
         return self.frontier_cells
 
@@ -72,51 +52,6 @@ class Agent:
                 
         return pit_free_cells
     
-    def update_KB_from_inference(self, new_safe_cells, new_proven_wumpuses, new_proven_pits):
-        self.safe_cells.update(new_safe_cells)
-        self.proven_wumpuses.update(new_proven_wumpuses)
-        self.proven_pits.update(new_proven_pits)
-
-    def update_location(self, new_location: Point):
-        self.location = new_location
-        self.visited_cells.add(new_location)
-
-        self.frontier_cells.discard(new_location)
-
-        for neighbor, _ in self.get_neighbors(new_location):
-            if neighbor not in self.visited_cells:
-                self.frontier_cells.add(neighbor)
-    
-    def turn_left(self):
-        self.direction = TURN_LEFT_MAP[self.direction]
-        self.last_action = Action.TURN_LEFT
-
-    def turn_right(self):
-        self.direction = TURN_RIGHT_MAP[self.direction]
-        self.last_action = Action.TURN_RIGHT
-
-    def move_forward(self):
-        move_vec = DIRECTION_VECTORS[self.direction]
-        new_location = self.location + move_vec
-
-        self.last_action = Action.MOVE_FORWARD
-        return new_location
-
-    def shoot(self):
-        if self.has_arrow:
-            self.has_arrow = False
-            self.last_action = Action.SHOOT
-
-    def grab_gold(self):
-        self.has_gold = True
-        self.last_action = Action.GRAB
-
-    def climb_out(self):
-        self.last_action = Action.CLIMB_OUT
-
-    def __str__(self):
-        return f"Agent({self.location}, {DIRECTION_NAMES[self.direction]}, Arrow={self.has_arrow}, Gold={self.has_gold})"
-
     def get_direction_to_target(self, target: Point) -> Direction:
         dx, dy = target.x - self.location.x, target.y - self.location.y
         if dx == 0 and dy > 0: return Direction.NORTH
@@ -125,26 +60,6 @@ class Agent:
         if dy == 0 and dx < 0: return Direction.WEST
         return None
     
-    def get_turn_decision(self, current_direction: Direction, target_direction: Direction) -> list[Action]:
-        """
-        Function to return list of turn actions (optimality)
-        """
-        if current_direction == target_direction:
-            return []
-
-        dirs = [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST]
-        try:
-            current_index = dirs.index(current_direction)
-            target_index = dirs.index(target_direction)     
-        except ValueError: 
-            return [Action.TURN_RIGHT, Action.TURN_RIGHT] # Fallback
-
-        diff = (target_index - current_index + 4) % 4
-
-        if diff == 1: return [Action.TURN_RIGHT]
-        if diff == 3: return [Action.TURN_LEFT]
-        if diff == 2: return [Action.TURN_RIGHT, Action.TURN_RIGHT]
-        return []
     
     def decide_safe_shoot_action(self, kb: KB, inference: InferenceEngine,) -> bool:
         """
