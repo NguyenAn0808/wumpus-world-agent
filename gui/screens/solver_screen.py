@@ -19,6 +19,7 @@ class SolverScreen(Screen):
         self.running = True
         self.screen = app.screen
         
+        
         # Init Pygame
         self.screen = app.screen
         pygame.display.set_caption("Solver View")
@@ -60,13 +61,18 @@ class SolverScreen(Screen):
         self.log_scroll = 0
         
         # Agent reasoning setup
+        state = world.get_state()
+        start_location = state['agent_location']
+        start_direction = state['agent_direction']
+        world_size = state['size']
 
         # Wrap world into GamePlay logic
-        self.gameloop = GamePlay(display_callback=self.receive_game_state)
+        self.agent = HybridAgent(start_location, start_direction, world_size)
+        self.gameloop = GamePlay(agent=self.agent, display_callback=self.receive_game_state)
+
         self.gameloop.world = world
         self.gameloop.agent.world = world
         self.world_obj = world  # optional reference
-        self.agent = self.gameloop.agent
 
         self.auto_solve_delay = 1.0  # seconds per step
         self.auto_solve_timer = 0.0
