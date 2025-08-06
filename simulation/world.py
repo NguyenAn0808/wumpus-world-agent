@@ -36,9 +36,11 @@ class World:
 
         fixed_layout = {
             Point(2, 1): {'P'},
+            Point(3, 0): {'P'},
+            Point(3, 3): {'P'},
             Point(1, 2): {'W'},
-            Point(2, 2): {'W'},
-            Point(3, 1): {'G'}
+            Point(2, 0): {'W'},
+            Point(0, 3): {'G'}
         }
 
         # 3. Áp dụng layout cố định vào self.state
@@ -114,12 +116,18 @@ class World:
         return percepts
     
     def kill_wumpus(self, wumpus_pos: Point):
-        if 'W' in self.state[wumpus_pos.y][wumpus_pos.x]:
+        if is_valid(wumpus_pos, self.size) and 'W' in self.state[wumpus_pos.y][wumpus_pos.x]:
+            print(f"--- World Event: Wumpus at {wumpus_pos} has been killed. ---")
+            
             self.state[wumpus_pos.y][wumpus_pos.x].remove('W')
+            
             if wumpus_pos in self.wumpus_locations:
                 self.wumpus_locations.remove(wumpus_pos)
 
             self.remove_stench(wumpus_pos)
+            
+            return True 
+        return False 
             
     def remove_stench(self, wumpus_pos: Point):
         for cell in get_adjacent_cells(wumpus_pos, self.size):

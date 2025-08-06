@@ -32,7 +32,7 @@ class GamePlay:
 
     def __init__(self, agent: Agent, display_callback):
         print("-----WUMPUS WORLD AGENT-----\n")
-        self.world = World(debug_map=False)
+        self.world = World(debug_map=True)
         
         start_pos = INITIAL_AGENT_LOCATION
         start_dir = INITIAL_AGENT_DIRECTION
@@ -80,6 +80,7 @@ class GamePlay:
             "gold_location": world_info['gold_location'],
 
             # Action of Agent
+            'score': self.agent.score,
             'agent_location': self.agent.location,
             'agent_direction': self.agent.direction,
             'agent_has_arrow': self.agent.has_arrow,
@@ -104,7 +105,6 @@ class GamePlay:
         
         return game_state
 
-
     def display_current_state(self):
         if self.display_callback:
             state_to_display = self.get_game_state()
@@ -113,9 +113,11 @@ class GamePlay:
     @property
     def stop_game(self):
         return self.status != GameStatus.IN_PROGRESS
+    
     # GUI merge
     def run_single_action(self):
         if self.stop_game or not self.agent.alive:
+            print("DEBUG: Game should stop. Exiting run_single_action.")
             return
 
         self.update_agent_state_after_action()
@@ -160,15 +162,29 @@ class GamePlay:
 
         percepts = self.world.get_percepts(cell)
 
+        breeze_literal = Literal(f"B{x}{y}")
+        self.kb.pit_rules.discard(frozenset([breeze_literal]))
+        self.kb.pit_rules.discard(frozenset([breeze_literal.negate()]))
+
         if Percept.BREEZE in percepts:
             self.kb.tell_fact(Literal(f"B{x}{y}"))
         else:
             self.kb.tell_fact(Literal(f"B{x}{y}", negated=True))
 
+        stench_literal = Literal(f"S{x}{y}")
+        self.kb.wumpus_rules.discard(frozenset([stench_literal]))
+        self.kb.wumpus_rules.discard(frozenset([stench_literal.negate()]))
+
         if Percept.STENCH in percepts:
             self.kb.tell_fact(Literal(f"S{x}{y}"))
         else:
             self.kb.tell_fact(Literal(f"S{x}{y}", negated=True))
+
+        glitter_literal = Literal(f"G{x}{y}")
+        self.kb.wumpus_rules.discard(frozenset([glitter_literal]))
+        self.kb.pit_rules.discard(frozenset([glitter_literal]))
+        self.kb.wumpus_rules.discard(frozenset([glitter_literal.negate()]))
+        self.kb.pit_rules.discard(frozenset([glitter_literal.negate()]))
 
         if Percept.GLITTER in percepts:
             self.kb.tell_fact(Literal(f"G{x}{y}"))
@@ -304,18 +320,14 @@ class GamePlay:
             killed_wumpus_pos = None
 
             for pos in shot_path:
-                if 'W' in self.world.state[pos.y][pos.x]:
-                    self.world.state[pos.y][pos.x].remove('W')
+                if self.world.kill_wumpus(pos):
                     wumpus_killed = True
-                    killed_wumpus_pos = pos
-
-                    self.world.remove_stench(killed_wumpus_pos)
                     break 
 
             if wumpus_killed:
                 self.message = "Agent shot an arrow. A loud SCREAM is heard!"
                 print(f"--- {self.message} ---")
-
+                self.kb.process_scream_event()
                 self.agent.planned_action.clear()
                 self.agent.needs_full_rethink = True
             else:

@@ -87,3 +87,17 @@ class KB:
         elif fact_name.startswith('W') or fact_name.startswith('S'):
             self.wumpus_rules.add(fact_clause)
 
+    def process_scream_event(self):
+        clauses_to_remove = set()
+        
+        for clause in self.wumpus_rules:
+            if len(clause) == 1:
+                literal = next(iter(clause))
+                
+                if literal.name.startswith('S'):
+                    clauses_to_remove.add(clause)
+        
+        self.wumpus_rules.difference_update(clauses_to_remove)
+        
+        if clauses_to_remove:
+            print(f"Removed {len(clauses_to_remove)} old Stench facts from Wumpus KB.")
