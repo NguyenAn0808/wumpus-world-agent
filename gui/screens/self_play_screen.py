@@ -1,7 +1,9 @@
 import pygame
 import os
+import cv2
 
 from gui.screens.screen import Screen
+from gui.screens.menu_screen import MenuScreen
 # from gui.ui.button import Button
 
 # --- Layout Constants ---
@@ -72,7 +74,6 @@ class SelfPlayScreen(Screen):
         self.time_per_anim_frame = 0.1 # Giá trị mặc định, sẽ được tính toán lại
 
         # Logic game
-        self.is_game_over = False
         self.has_arrow = True
         self.score = 0
         self.has_gold = False
@@ -85,6 +86,67 @@ class SelfPlayScreen(Screen):
         self.auto_scroll_to_bottom = True  
 
         self.panel_rect = pygame.Rect(GAME_AREA_WIDTH, 0, UI_PANEL_WIDTH, UI_PANEL_HEIGHT) 
+
+        # Popups endgame
+        self.overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        self.overlay.fill((0, 0, 0, 150)) # Màu đen, độ mờ 150/255
+        self.game_over_state = None  
+
+        self.video_capture = None        # Đối tượng cv2.VideoCapture
+        self.current_video_frame = None  # Surface Pygame của frame hiện tại
+        self.video_fps = 0               # FPS của video đang phát
+        self.video_frame_timer = 0.0     # Đồng hồ để đồng bộ frame
+
+        self.video_display_size = (400, 400)
+        self.popup_video_paths = {
+            'wumpus': os.path.join("gui", "assets", "wumpus.mp4"),
+            'pit': os.path.join("gui", "assets", "pit.mp4"),
+            'scream': os.path.join("gui", "assets", "scream.mp4"),
+            'climb out': os.path.join("gui", "assets", "climb out.mp4")
+        }
+
+        self.terminating_states = ['wumpus', 'pit', 'climb out', 'error']
+            
+    def load_popup_image(self, name):
+        path = os.path.join("gui", "assets", f"{name}.png") # Giả sử ảnh nằm trong assets/ui
+        try:
+            return pygame.image.load(path).convert_alpha()
+        except (pygame.error, FileNotFoundError) as e:
+            print(f"Warning: Could not load popup image '{path}'. Error: {e}")
+            # Tạo placeholder nếu không có ảnh
+            placeholder = self.ui_font_title.render(f"{name.upper()}", True, (255, 0, 0))
+            return placeholder
+        
+    def start_game_over_video(self, state):
+        """Kích hoạt trạng thái game over và mở video bằng CV2."""
+        self.game_over_state = state
+        video_path = self.popup_video_paths.get(state)
+
+        if video_path and os.path.exists(video_path):
+            try:
+                self.video_capture = cv2.VideoCapture(video_path)
+                if not self.video_capture.isOpened():
+                    raise IOError(f"Cannot open video file: {video_path}")
+                
+                # Lấy FPS của video
+                self.video_fps = self.video_capture.get(cv2.CAP_PROP_FPS)
+                # Nếu không lấy được FPS, đặt giá trị mặc định
+                if self.video_fps == 0:
+                    print(f"Warning: Could not get FPS for {video_path}. Defaulting to 30 FPS.")
+                    self.video_fps = 30
+
+            except Exception as e:
+                print(f"Error loading video with cv2: {e}")
+                self.video_capture = None
+                # Nếu có lỗi, chuyển về menu sau 3 giây
+                self.game_over_state = 'error' # Một trạng thái dự phòng
+                self.game_over_timer = 0.0
+                self.game_over_duration = 3.0
+        else:
+            print(f"Video not found for state: {state}")
+            self.game_over_state = 'error'
+            self.game_over_timer = 0.0
+            self.game_over_duration = 3.0
     
     def get_pixel_pos_from_grid(self, grid_x, grid_y):
         """Converts grid coordinates (bottom-left origin) to pixel coordinates (top-left origin)."""
@@ -197,9 +259,6 @@ class SelfPlayScreen(Screen):
                 pygame.draw.rect(self.screen, (45, 102, 91), rect) # Cell background
                 pygame.draw.rect(self.screen, (35, 80, 72), rect, 2) # Cell border
 
-                # TODO: Draw Borders for outer edges 
-                
-                
                 # --- Draw Items from map_state ---
                 state = self.map_state['state']
                 if y < len(state) and x < len(state[y]):
@@ -292,39 +351,43 @@ class SelfPlayScreen(Screen):
 
             # Vẽ icon hướng dẫn chơi bên dưới game area
             icon_keys = pygame.image.load(os.path.join("assets", "keys.png")).convert_alpha()
-            
             icon_arrow = pygame.image.load(os.path.join("assets", "space.png")).convert_alpha()
             # icon_arrow = pygame.transform.scale(icon_arrow)
             icon_esc = pygame.image.load(os.path.join("assets",  "escape.png")).convert_alpha()
             # icon_esc = pygame.transform.scale(icon_esc)
             icon_enter = pygame.image.load(os.path.join("assets", "enter.png")).convert_alpha()
             # icon_enter = pygame.transform.scale(icon_enter)
-            self.screen.blit(icon_arrow, (SCREEN_HEIGHT + 20, 100))
-            self.screen.blit(icon_keys, (SCREEN_HEIGHT + 20, 150))
-            self.screen.blit(icon_esc, (SCREEN_HEIGHT + 20, 200))
-            self.screen.blit(icon_enter, (SCREEN_HEIGHT + 20, 250))
+            self.screen.blit(icon_arrow, (SCREEN_HEIGHT + 400, 100))
+            self.screen.blit(icon_keys, (SCREEN_HEIGHT + 400, 150))
+            self.screen.blit(icon_esc, (SCREEN_HEIGHT + 400, 200))
+            self.screen.blit(icon_enter, (SCREEN_HEIGHT + 400, 250))
 
+    def draw_game_over_video(self):
+        self.screen.blit(self.overlay, (0, 0))
+
+        if self.current_video_frame:
+            screen_rect = self.screen.get_rect()
+            frame_rect = self.current_video_frame.get_rect(center=screen_rect.center)
+            self.screen.blit(self.current_video_frame, frame_rect)
 
     def add_to_log(self, message):
         self.action_log.append(message)
         self.log_surface_needs_update = True
 
-
     def check_consequences(self):
-        x, y = self.agent_pos
+        if self.game_over_state: return
 
+        x, y = self.agent_pos
         cell_content = self.map_state['state'][y][x]
 
         if 'W' in cell_content:
             self.add_to_log("Wumpus!")
-            self.is_game_over = True
             self.score -= 1000
-            self.running = False
+            self.start_game_over_video('wumpus')
         elif 'P' in cell_content:
             self.add_to_log("Pit!")
-            self.is_game_over = True
             self.score -= 1000
-            self.running = False
+            self.start_game_over_video('pit')
 
     def shoot_arrow(self):
         self.add_to_log("You shoot an arrow...")
@@ -352,6 +415,7 @@ class SelfPlayScreen(Screen):
             cell_content = self.map_state['state'][arrow_y][arrow_x]
             if 'W' in cell_content:
                 self.add_to_log("SCREAM")
+                self.start_game_over_video('scream')
                 
                 # Delete wumpus
                 self.map_state['state'][arrow_y][arrow_x].discard('W')
@@ -365,8 +429,13 @@ class SelfPlayScreen(Screen):
                 break 
 
     def handle_input(self):
-        if self.is_game_over:
-            return
+        if self.game_over_state:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    if hasattr(self.app, 'quit'):
+                        self.app.quit()
+            return 
        
         # Chỉ xử lý input mới nếu agent không bận (không di chuyển và không xoay)
         if self.is_moving or self.turning:
@@ -431,7 +500,7 @@ class SelfPlayScreen(Screen):
                         if self.has_gold:
                             self.score += 1000
 
-                        self.running = False
+                        self.start_game_over_video('climb out')
 
                 if desired_dir:
                     # Nếu hướng mong muốn khác hướng hiện tại -> xoay người
@@ -473,8 +542,46 @@ class SelfPlayScreen(Screen):
             self.time_per_anim_frame = self.move_duration / num_frames
 
     def update(self, dt):
-        if self.is_game_over:
-            return
+        if self.game_over_state:
+            if self.video_capture:
+                # Thời gian chờ giữa các frame video
+                time_per_frame = 1.0 / self.video_fps
+                self.video_frame_timer += dt
+
+                # Nếu đã đến lúc hiển thị frame tiếp theo
+                if self.video_frame_timer >= time_per_frame:
+                    self.video_frame_timer -= time_per_frame
+                    
+                    success, frame = self.video_capture.read()
+
+                    if success:
+                        resized_frame = cv2.resize(frame, self.video_display_size)
+                        # CV2 đọc frame ở định dạng BGR, Pygame cần RGB.
+                        frame_rgb = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+                        # Frame của CV2 là (height, width), cần xoay để thành (width, height) cho Pygame
+                        frame_pygame = frame_rgb.transpose([1, 0, 2])
+                        # Tạo Surface Pygame từ mảng numpy
+                        self.current_video_frame = pygame.surfarray.make_surface(frame_pygame)
+                    else:
+                        # Video đã kết thúc
+                        self.video_capture.release() 
+                        self.video_capture = None
+
+                        if self.game_over_state in self.terminating_states:
+                            self.app.switch_screen(MenuScreen(self.app))
+                            self.running = False
+                        else:
+                            self.game_over_state = None
+                            self.current_video_frame = None 
+            
+            # Xử lý trường hợp video bị lỗi
+            elif self.game_over_state == 'error':
+                self.game_over_timer += dt
+                if self.game_over_timer >= self.game_over_duration:
+                    self.app.switch_screen(MenuScreen(self.app))
+                    self.running = False
+
+            return 
 
         if self.is_moving:
             self.move_progress += dt / self.move_duration
@@ -495,8 +602,13 @@ class SelfPlayScreen(Screen):
 
     def render(self):
         self.screen.fill((190, 212, 184))
+        
         self.draw_game_area()
         self.draw_ui_panel()
+
+        if self.game_over_state:
+            self.draw_game_over_video()
+        
         pygame.display.flip()
 
     def run(self):
