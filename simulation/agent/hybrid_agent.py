@@ -39,19 +39,6 @@ class HybridAgent(Agent):
     def get_uncertain_cells(self) -> set[Point]:
         return self.get_frontier_cells() - self.safe_cells
     
-    def get_unvisited_pit_free_cells(self, kb: KB, inference: InferenceEngine) -> set[Point]:
-        pit_free_cells = set()
-        
-        uncertain_frontier = self.get_uncertain_cells()
-
-        for cell in uncertain_frontier:
-            is_pit_negated_literal = Literal(f"P{cell.x}{cell.y}", negated=True)
-            
-            if inference.ask_Pit(kb.pit_rules, is_pit_negated_literal):
-                pit_free_cells.add(cell)
-                
-        return pit_free_cells
-    
     def get_direction_to_target(self, target: Point) -> Direction:
         dx, dy = target.x - self.location.x, target.y - self.location.y
         if dx == 0 and dy > 0: return Direction.NORTH
@@ -59,7 +46,6 @@ class HybridAgent(Agent):
         if dy == 0 and dx > 0: return Direction.EAST
         if dy == 0 and dx < 0: return Direction.WEST
         return None
-    
     
     def decide_safe_shoot_action(self, kb: KB, inference: InferenceEngine,) -> bool:
         """
@@ -237,7 +223,6 @@ class HybridAgent(Agent):
         """"
         Function to find safe cells from uncertain cells
         """
-
         safe = set()
         uncertain_cells = self.get_uncertain_cells()
 
@@ -257,16 +242,11 @@ class HybridAgent(Agent):
         
         if self.planned_action:
             return
-        
-        print("\n--- AGENT DECISION PROCESS ---")
-        print(f"Current safe_cells: {self.safe_cells}")
-        print(f"Current visited_cells: {self.visited_cells}")
-
+    
         # Option 1: Grab gold
         if Percept.GLITTER in self.current_percepts and not self.has_gold:
             self.planned_action.append(Action.GRAB)
             print("Plan: Found Glitter! Grabbing the gold.")
-            # Sau khi nhặt, agent sẽ tự động chuyển sang ưu tiên 1 ở lượt sau
             return
         
         # Option 2: Process Gold
@@ -284,7 +264,6 @@ class HybridAgent(Agent):
         
         # Option 3: Find safe cells and then discover it
         unvisited_safe_cells = self.get_unvisited_safe_cells()
-        print(f"Found unvisited safe cells: {unvisited_safe_cells}")
         if unvisited_safe_cells:
             print(f"Plan: Exploring safe unvisited cells: {unvisited_safe_cells}\n")
             self.explore_with_astar(unvisited_safe_cells)

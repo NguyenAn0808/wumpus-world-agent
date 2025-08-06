@@ -87,6 +87,9 @@ class KB:
         elif fact_name.startswith('W') or fact_name.startswith('S'):
             self.wumpus_rules.add(fact_clause)
 
+        elif fact_name.startswith('G'):
+            self.pit_rules.add(fact_clause)
+
     def process_scream_event(self):
         clauses_to_remove = set()
         

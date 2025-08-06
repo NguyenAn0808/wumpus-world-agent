@@ -27,12 +27,11 @@ def format_kb_for_printing(kb: set) -> str:
     # Nối tất cả các clause đã định dạng bằng " ^ " (AND)
     return " ^ ".join(sorted(formatted_clauses))
 
-
 class GamePlay:
 
     def __init__(self, agent: Agent, display_callback):
         print("-----WUMPUS WORLD AGENT-----\n")
-        self.world = World(debug_map=True)
+        self.world = World(debug_map=False)
         
         start_pos = INITIAL_AGENT_LOCATION
         start_dir = INITIAL_AGENT_DIRECTION
@@ -53,19 +52,6 @@ class GamePlay:
         self.update_agent_state_after_action()
         self.display_callback = display_callback
 
-    def update_agent_state_after_action(self):
-        current_location = self.agent.location
-        
-        current_percepts = self.world.get_percepts(current_location)
-        self.agent.update_percepts(current_percepts)
-
-        self.kb.retract_and_tell_percept_facts(current_location, current_percepts)
-
-        if current_location not in self.agent.cells_learned_from:
-            self.learn_from_new_cell(current_location)
-            self.agent.cells_learned_from.add(current_location)
-
-    
     def get_game_state(self) -> dict:
         
         # kb_info = self.get_kb_for_display()
@@ -104,6 +90,35 @@ class GamePlay:
         }
         
         return game_state
+
+    def check_game_status(self):
+        location = self.agent.location
+        cell = self.world.state[location.y][location.x]
+
+        if 'W' in cell:
+            self.agent.alive = False
+            self.status = GameStatus.DEAD_BY_WUMPUS
+            self.agent.score += SCORES["DEATH_WUMPUS"]
+            self.message = f"Agent was eaten by a Wumpus at {location}!"
+
+        elif 'P' in cell:
+            self.agent.alive = False
+            self.status = GameStatus.DEAD_BY_PIT
+            self.agent.score += SCORES["DEATH_PIT"]
+            self.message = f"Agent fell into a pit at {location}!"
+
+        elif self.agent.last_action == Action.CLIMB_OUT:
+            if location == INITIAL_AGENT_LOCATION:
+                if self.agent.has_gold:
+                    self.status = GameStatus.CLIMB_SUCCESS
+                    self.agent.score += SCORES["CLIMB_SUCCESS"]
+                    self.message = "Agent climbed out with the gold! YOU WON!"
+                else:
+                    self.status = GameStatus.CLIMB_FAIL
+                    self.agent.score += SCORES["CLIMB_FAIL"]
+                    self.message = "Agent climbed out without the gold."
+            else:
+                self.message = "Agent cannot climb out from here."  
 
     def display_current_state(self):
         if self.display_callback:
@@ -152,44 +167,6 @@ class GamePlay:
         self.display_current_state()
         print(f"--- {self.message} ---")
         print(f"Final Score: {self.agent.score}")
-    
-    # Agent learn
-    def update_KB_with_facts(self, cell: Point):
-        x, y = cell.x, cell.y
-
-        self.kb.tell_fact(Literal(f"P{cell.x}{cell.y}", negated=True))
-        self.kb.tell_fact(Literal(f"W{cell.x}{cell.y}", negated=True))
-
-        percepts = self.world.get_percepts(cell)
-
-        breeze_literal = Literal(f"B{x}{y}")
-        self.kb.pit_rules.discard(frozenset([breeze_literal]))
-        self.kb.pit_rules.discard(frozenset([breeze_literal.negate()]))
-
-        if Percept.BREEZE in percepts:
-            self.kb.tell_fact(Literal(f"B{x}{y}"))
-        else:
-            self.kb.tell_fact(Literal(f"B{x}{y}", negated=True))
-
-        stench_literal = Literal(f"S{x}{y}")
-        self.kb.wumpus_rules.discard(frozenset([stench_literal]))
-        self.kb.wumpus_rules.discard(frozenset([stench_literal.negate()]))
-
-        if Percept.STENCH in percepts:
-            self.kb.tell_fact(Literal(f"S{x}{y}"))
-        else:
-            self.kb.tell_fact(Literal(f"S{x}{y}", negated=True))
-
-        glitter_literal = Literal(f"G{x}{y}")
-        self.kb.wumpus_rules.discard(frozenset([glitter_literal]))
-        self.kb.pit_rules.discard(frozenset([glitter_literal]))
-        self.kb.wumpus_rules.discard(frozenset([glitter_literal.negate()]))
-        self.kb.pit_rules.discard(frozenset([glitter_literal.negate()]))
-
-        if Percept.GLITTER in percepts:
-            self.kb.tell_fact(Literal(f"G{x}{y}"))
-        else:
-            self.kb.tell_fact(Literal(f"G{x}{y}", negated=True))
 
     def add_percepts_rules_to_KB(self, cell: Point):
         adj_cells = get_adjacent_cells(cell, self.world.size)
@@ -218,14 +195,24 @@ class GamePlay:
         
         self.add_percepts_rules_to_KB(cell)
 
+    def update_agent_state_after_action(self):
+        current_location = self.agent.location
+        
+        current_percepts = self.world.get_percepts(current_location)
+        self.agent.update_percepts(current_percepts)
+
+        self.kb.retract_and_tell_percept_facts(current_location, current_percepts)
+
+        if current_location not in self.agent.cells_learned_from:
+            self.learn_from_new_cell(current_location)
+            self.agent.cells_learned_from.add(current_location)
+
     def update_KB_and_inference(self):
         print(f"\n--- Agent at {self.agent.location} is thinking (Iterative Inference) ---")
 
         cells_to_check = self.agent.get_frontier_cells().copy()
 
         if self.agent.needs_full_rethink:
-            print("--- Full rethink triggered! Checking all uncertain cells. ---")
-            # Lấy tất cả các ô đã biết nhưng chưa đi vào và chưa chắc chắn
             all_known_cells = self.agent.safe_cells.union(self.agent.frontier_cells)
             cells_to_check.update(all_known_cells - self.agent.visited_cells)
             self.agent.needs_full_rethink = False 
@@ -234,18 +221,13 @@ class GamePlay:
             newly_found_info = False
         
             for cell in list(cells_to_check):
-                
-                print(f"DEBUG: Checking cell {cell}")
                 is_w_false = self.inference.ask_Wumpus(self.kb.wumpus_rules, Literal(f"W{cell.x}{cell.y}", negated=True))
                 is_p_false = self.inference.ask_Pit(self.kb.pit_rules, Literal(f"P{cell.x}{cell.y}", negated=True))
-                print(f"DEBUG: Is Wumpus false? {is_w_false}. Is Pit false? {is_p_false}")
-                # Tìm ô an toàn mới
+                
                 if cell not in self.agent.safe_cells:
                     if self.inference.ask_safe(self.kb.wumpus_rules, self.kb.pit_rules, cell):
                         print(f"INFERRED NEW SAFE CELL: {cell}")
                         self.agent.safe_cells.add(cell)
-                        # self.kb.tell_fact(Literal(f"W{cell.x}{cell.y}", negated=True))
-                        # self.kb.tell_fact(Literal(f"P{cell.x}{cell.y}", negated=True))
                         newly_found_info = True
 
                 # Tìm Wumpus mới
@@ -253,7 +235,6 @@ class GamePlay:
                     if self.inference.ask_Wumpus(self.kb.wumpus_rules, Literal(f"W{cell.x}{cell.y}")):
                         print(f"INFERRED NEW WUMPUS: {cell}")
                         self.agent.proven_wumpuses.add(cell)
-                        # self.kb.tell_fact(Literal(f"W{cell.x}{cell.y}"))
                         newly_found_info = True
 
                 # Tìm Pit mới
@@ -261,7 +242,6 @@ class GamePlay:
                     if self.inference.ask_Pit(self.kb.pit_rules, Literal(f"P{cell.x}{cell.y}")):
                         print(f"INFERRED NEW PIT: {cell}")
                         self.agent.proven_pits.add(cell)
-                        # self.kb.tell_fact(Literal(f"P{cell.x}{cell.y}"))
                         newly_found_info = True
 
             if not newly_found_info:
@@ -277,9 +257,11 @@ class GamePlay:
         if action == Action.TURN_LEFT:
             self.agent.turn_left()
             self.agent.score += SCORES["TURN_LEFT"]
+
         elif action == Action.TURN_RIGHT:
             self.agent.turn_right()
             self.agent.score += SCORES["TURN_RIGHT"]
+
         elif action == Action.GRAB:
             if Percept.GLITTER in self.world.get_percepts(self.agent.location):
                 self.agent.grab_gold()
@@ -288,8 +270,10 @@ class GamePlay:
                 self.message = "Agent grabbed the GOLD!"
             else:
                 self.message = "Agent tried to grab, but there is no gold here."
+
         elif action == Action.MOVE_FORWARD:
             next_location = self.agent.location + DIRECTION_VECTORS[self.agent.direction]
+
             # Not crash the wall
             assert is_valid(next_location, self.world.size), \
                 f"FATAL LOGIC ERROR: Agent at {self.agent.location} tried to move into a wall."
@@ -303,9 +287,9 @@ class GamePlay:
         elif action == Action.SHOOT:
             if not self.agent.has_arrow:
                 self.message = "Agent tried to shoot, but has no arrow!"
-                # Xóa kế hoạch để tránh lặp lại
+                
                 self.agent.planned_action.clear()
-                return # Không làm gì cả
+                return 
             
             self.agent.shoot() 
             self.agent.score += SCORES["SHOOT"]
@@ -338,36 +322,10 @@ class GamePlay:
                     self.kb.tell_fact(wumpus_literal)
                     self.agent.proven_wumpuses.discard(pos)
 
-            self.agent.planned_action.clear()
-            self.agent.needs_full_rethink = True
-        else:
+                self.agent.planned_action.clear()
+                self.agent.needs_full_rethink = True
+
+        else: # Climb out
             self.agent.climb_out()
 
-    def check_game_status(self):
-        location = self.agent.location
-        cell = self.world.state[location.y][location.x]
-
-        if 'W' in cell:
-            self.agent.alive = False
-            self.status = GameStatus.DEAD_BY_WUMPUS
-            self.agent.score += SCORES["DEATH_WUMPUS"]
-            self.message = f"Agent was eaten by a Wumpus at {location}!"
-
-        elif 'P' in cell:
-            self.agent.alive = False
-            self.status = GameStatus.DEAD_BY_PIT
-            self.agent.score += SCORES["DEATH_PIT"]
-            self.message = f"Agent fell into a pit at {location}!"
-
-        elif self.agent.last_action == Action.CLIMB_OUT:
-            if location == INITIAL_AGENT_LOCATION:
-                if self.agent.has_gold:
-                    self.status = GameStatus.CLIMB_SUCCESS
-                    self.agent.score += SCORES["CLIMB_SUCCESS"]
-                    self.message = "Agent climbed out with the gold! YOU WON!"
-                else:
-                    self.status = GameStatus.CLIMB_FAIL
-                    self.agent.score += SCORES["CLIMB_FAIL"]
-                    self.message = "Agent climbed out without the gold."
-            else:
-                self.message = "Agent cannot climb out from here."  
+    

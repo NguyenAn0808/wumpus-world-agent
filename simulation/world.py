@@ -17,6 +17,20 @@ class World:
         self.debug_map = debug_map
         self.generate_map()
     
+    def get_state(self):
+        return {
+            "state": self.state,
+            "agent_location": INITIAL_AGENT_LOCATION,
+            "agent_has_arrow": INITIAL_AGENT_HAS_ARROW,
+            "agent_direction": INITIAL_AGENT_DIRECTION,
+            "pit_probability": self.pit_prob,
+            "number_of_wumpus": self.number_of_wumpus,
+            "size": self.size,
+            "debug_map": self.debug_map,
+            "wumpus_locations": self.wumpus_locations,
+            "gold_location": self.gold_location
+        }
+    
     def generate_map(self):
         self.state = [[set() for _ in range(self.size)] for _ in range(self.size)]
         self.wumpus_locations = []
@@ -149,17 +163,3 @@ class World:
                 cell_items.remove('G')
                 print(f"World state: Gold removed from {gold_pos}.")
                 self.gold_location = None 
-
-    def get_state(self):
-        return {
-            "state": self.state,
-            "agent_location": INITIAL_AGENT_LOCATION,
-            "agent_has_arrow": INITIAL_AGENT_HAS_ARROW,
-            "agent_direction": INITIAL_AGENT_DIRECTION,
-            "pit_probability": self.pit_prob,
-            "number_of_wumpus": self.number_of_wumpus,
-            "size": self.size,
-            "debug_map": self.debug_map,
-            "wumpus_locations": self.wumpus_locations,
-            "gold_location": self.gold_location
-        }
