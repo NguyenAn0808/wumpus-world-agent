@@ -8,7 +8,8 @@ from gui.screens.screen import Screen
 GRID_SIZE = 8
 CELL_SIZE = 80 # Increased cell size for better visibility
 GAME_AREA_WIDTH = GRID_SIZE * CELL_SIZE
-UI_PANEL_WIDTH = GAME_AREA_WIDTH // 3 # UI panel is 1/3 of the game area
+UI_PANEL_WIDTH = 400
+UI_PANEL_HEIGHT = 400
 SCREEN_WIDTH = GAME_AREA_WIDTH + UI_PANEL_WIDTH
 SCREEN_HEIGHT = GRID_SIZE * CELL_SIZE
 
@@ -60,7 +61,6 @@ class SelfPlayScreen(Screen):
         self.move_start_pix_pos = None
         self.move_target_pix_pos = None
 
-
         # Turning timing
         self.turning = False
         self.turn_timer = 0.0
@@ -76,6 +76,15 @@ class SelfPlayScreen(Screen):
         self.has_arrow = True
         self.score = 0
         self.has_gold = False
+
+        # ScrollBar
+        self.log_scroll_y = 0               
+        self.log_line_height = 20           
+        self.log_surface_needs_update = True  
+        self.log_full_surface = None        
+        self.auto_scroll_to_bottom = True  
+
+        self.panel_rect = pygame.Rect(GAME_AREA_WIDTH, 0, UI_PANEL_WIDTH, UI_PANEL_HEIGHT) 
     
     def get_pixel_pos_from_grid(self, grid_x, grid_y):
         """Converts grid coordinates (bottom-left origin) to pixel coordinates (top-left origin)."""
@@ -215,51 +224,97 @@ class SelfPlayScreen(Screen):
         self.screen.blit(scaled_agent, self.agent_pix_pos)
 
     def draw_ui_panel(self):
-        """Draws the UI panel on the right side of the screen."""
-        panel_rect = pygame.Rect(GAME_AREA_WIDTH, 0, UI_PANEL_WIDTH, SCREEN_HEIGHT)
-        pygame.draw.rect(self.screen, (220, 220, 240), panel_rect) # Light grey background
+        # 1. Vẽ nền cho panel
+        
+        pygame.draw.rect(self.screen, (220, 220, 240), self.panel_rect) # Nền xám nhạt
 
-        # --- Action Log Section ---
-        log_title = self.ui_font_title.render("Action Log", True, (0,0,0))
+        # --- Phần Action Log ---
+        log_title = self.ui_font_title.render("Action Log", True, (0, 0, 0))
         self.screen.blit(log_title, (GAME_AREA_WIDTH + 20, 20))
 
-        # Display log entries
-        log_y_start = 60
-        for i, entry in enumerate(self.action_log[-25:]): # Show last 25 entries
-            log_text = self.ui_font_log.render(entry, True, (50, 50, 50))
-            self.screen.blit(log_text, (GAME_AREA_WIDTH + 20, log_y_start + i * 20))
+        # 2. Định nghĩa khu vực hiển thị cho log (viewable area)
+        log_view_rect = pygame.Rect(GAME_AREA_WIDTH, 60, UI_PANEL_WIDTH, UI_PANEL_HEIGHT - 80) # Dành không gian cho tiêu đề và lề
+
+        # 3. Tạo/Cập nhật Surface chứa toàn bộ log nếu cần
+        if self.log_surface_needs_update and self.action_log:
+            # Tính toán chiều cao cần thiết cho tất cả các dòng log
+            full_height = len(self.action_log) * self.log_line_height
+            # Tạo một surface mới đủ lớn
+            self.log_full_surface = pygame.Surface((log_view_rect.width - 40, full_height)) # -40 để có lề
+            self.log_full_surface.fill((220, 220, 240)) # Màu nền giống panel
+
+            # Vẽ từng dòng log lên surface lớn này
+            for i, entry in enumerate(self.action_log):
+                log_text = self.ui_font_log.render(entry, True, (50, 50, 50))
+                self.log_full_surface.blit(log_text, (0, i * self.log_line_height))
+            
+            self.log_surface_needs_update = False # Đánh dấu là đã cập nhật
+
+        # 4. Vẽ phần log có thể thấy được lên màn hình
+        if self.log_full_surface:
+            # Tính toán giá trị cuộn tối đa
+            max_scroll_y = self.log_full_surface.get_height() - log_view_rect.height
+            if max_scroll_y < 0:
+                max_scroll_y = 0
+
+            # Tự động cuộn xuống dưới cùng nếu được bật
+            if self.auto_scroll_to_bottom:
+                self.log_scroll_y = max_scroll_y
+            
+            # Đảm bảo không cuộn ra ngoài giới hạn
+            self.log_scroll_y = max(0, min(self.log_scroll_y, max_scroll_y))
+            
+            # Vùng "camera" chúng ta sẽ cắt từ surface lớn
+            source_rect = pygame.Rect(0, self.log_scroll_y, log_view_rect.width, log_view_rect.height)
+            
+            # Vị trí đích để vẽ trên màn hình chính
+            dest_pos = (log_view_rect.left + 20, log_view_rect.top) # +20 để có lề trái
+            
+            self.screen.blit(self.log_full_surface, dest_pos, source_rect)
+
+            # 5. Vẽ thanh cuộn (Scrollbar)
+            if max_scroll_y > 0:
+                # Vị trí và kích thước của đường ray
+                scrollbar_track_rect = pygame.Rect(self.panel_rect.right - 20, log_view_rect.top, 15, log_view_rect.height)
+                pygame.draw.rect(self.screen, (200, 200, 220), scrollbar_track_rect) # Màu đường ray
+
+                # Tính toán kích thước và vị trí của tay cầm
+                # Chiều cao tay cầm tỉ lệ với lượng nội dung có thể thấy
+                handle_height = log_view_rect.height * (log_view_rect.height / self.log_full_surface.get_height())
+                handle_height = max(20, handle_height) # Chiều cao tối thiểu cho tay cầm
+
+                # Vị trí Y của tay cầm tỉ lệ với vị trí cuộn
+                scroll_percentage = self.log_scroll_y / max_scroll_y
+                handle_y = scrollbar_track_rect.top + (scroll_percentage * (scrollbar_track_rect.height - handle_height))
+                
+                scrollbar_handle_rect = pygame.Rect(scrollbar_track_rect.left, handle_y, 15, handle_height)
+                pygame.draw.rect(self.screen, (150, 150, 170), scrollbar_handle_rect) # Màu tay cầm
 
     def add_to_log(self, message):
-        """Adds a message to the action log."""
         self.action_log.append(message)
-        if len(self.action_log) > 100: # Keep the log from getting too long
-            self.action_log.pop(0)
+        self.log_surface_needs_update = True
 
 
     def check_consequences(self):
-        """Kiểm tra hậu quả khi agent đến một ô mới (chết, thắng, ...)."""
-        # Lấy tọa độ hiện tại của agent
         x, y = self.agent_pos
 
-        # Lấy nội dung của ô hiện tại từ bản đồ
-        # Chú ý: map_state của bạn có vẻ đang dùng (y, x)
         cell_content = self.map_state['state'][y][x]
 
-        # Kiểm tra điều kiện chết
         if 'W' in cell_content:
-            self.add_to_log("Oh no! You walked into the Wumpus!")
+            self.add_to_log("Wumpus!")
             self.is_game_over = True
+            self.score -= 1000
             self.running = False
         elif 'P' in cell_content:
-            self.add_to_log("Aaaaaargh! You fell into a pit!")
+            self.add_to_log("Pit!")
             self.is_game_over = True
+            self.score -= 1000
             self.running = False
-
-    # Thêm hàm mới này vào class của bạn
 
     def shoot_arrow(self):
         self.add_to_log("You shoot an arrow...")
         self.has_arrow = False 
+        self.score -= 10
 
         direction_map = {
             'up':    (0, 1),
@@ -313,6 +368,23 @@ class SelfPlayScreen(Screen):
                 if hasattr(self.app, 'quit'):
                     self.app.quit()
 
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if self.panel_rect.collidepoint(event.pos): # Chỉ cuộn nếu chuột ở trong panel
+                    # event.button 4 is scroll up, 5 is scroll down
+                    if event.button == 4: # Scroll Up
+                        self.log_scroll_y = max(0, self.log_scroll_y - self.log_line_height * 3) # Cuộn 3 dòng
+                        self.auto_scroll_to_bottom = False # Người dùng đã tự cuộn
+                    elif event.button == 5: # Scroll Down
+                        self.log_scroll_y += self.log_line_height * 3
+                        
+                        # logic kiểm tra để bật lại auto-scroll sẽ được xử lý trong draw_ui_panel
+                        # để đảm bảo tính toán chính xác sau khi nội dung được cập nhật.
+                        # Tuy nhiên, chúng ta có thể làm một phép kiểm tra sơ bộ ở đây
+                        if self.log_full_surface:
+                            max_scroll = self.log_full_surface.get_height() - (UI_PANEL_HEIGHT - 80)
+                            if self.log_scroll_y >= max_scroll - self.log_line_height: # Gần dưới cùng
+                                self.auto_scroll_to_bottom = True
+
             if event.type == pygame.KEYDOWN:
                 dx, dy = 0, 0
                 desired_dir = None
@@ -333,37 +405,44 @@ class SelfPlayScreen(Screen):
                     x, y = self.agent_pos
                     if 'G' in self.map_state['state'][y][x]:
                         self.has_gold = True
-                        self.add_to_log("You found the glitter and picked up the GOLD!")
+                        self.score += 10
+                        self.add_to_log("GOLD!")
                         self.map_state['state'][y][x].discard('G')
                 elif event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
-                    self.shoot_arrow()
+                    if self.has_arrow:
+                        self.shoot_arrow()
                 elif event.key == pygame.K_ESCAPE:
                     if self.agent_pos == [0, 0]:
+                        if self.has_gold:
+                            self.score += 1000
+
                         self.running = False
-
-                        
-
 
                 if desired_dir:
                     # Nếu hướng mong muốn khác hướng hiện tại -> xoay người
                     if desired_dir != self.agent_direction:
+                        if (desired_dir == 'up' and self.agent_direction == 'down') or  (desired_dir == 'down' and self.agent_direction == 'up') or (desired_dir == 'right' and self.agent_direction == 'left') or  (desired_dir == 'left' and self.agent_direction == 'right'):
+                            self.score -= 2
+                        else:
+                            self.score -= 1
+                    
                         self.turning = True
                         self.turn_timer = 0.0
                         self.turn_mid_frame = self.get_turn_transition_frame(self.agent_direction, desired_dir)
                         self.next_direction = desired_dir
+
+                        self.add_to_log(f"Turn {desired_dir}")
                     # Nếu đã đúng hướng -> bắt đầu di chuyển
                     else:
                         self.start_move(dx, dy)
+                        self.score -= 1
 
     def start_move(self, dx, dy):
-        """Bắt đầu quá trình di chuyển của agent từ ô hiện tại đến ô tiếp theo."""
-        # Tính toán vị trí logic mới trên lưới
         new_x = self.agent_pos[0] + dx
         new_y = self.agent_pos[1] + dy
 
-        # Kiểm tra xem vị trí mới có nằm trong bản đồ không
         if not (0 <= new_x < GRID_SIZE and 0 <= new_y < GRID_SIZE):
-            return # Không làm gì nếu di chuyển ra ngoài biên
+            return
 
         # Thiết lập trạng thái di chuyển
         self.is_moving = True
@@ -378,9 +457,6 @@ class SelfPlayScreen(Screen):
         if num_frames > 0: # Tránh lỗi chia cho 0
             self.time_per_anim_frame = self.move_duration / num_frames
 
-        self.add_to_log(f"Moving to ({new_x}, {new_y})...")
-
-
     def update(self, dt):
         if self.is_game_over:
             return
@@ -391,7 +467,7 @@ class SelfPlayScreen(Screen):
             if self.move_progress >= 1.0:
                 self.is_moving = False
                 self.agent_pix_pos = self.move_target_pix_pos[:] # Snap vào vị trí cuối cùng
-                self.add_to_log(f"Arrived at ({self.agent_pos[0]}, {self.agent_pos[1]})")
+                self.add_to_log(f"Move to ({self.agent_pos[0]}, {self.agent_pos[1]})")
 
                 self.check_consequences()
             else:
@@ -401,8 +477,6 @@ class SelfPlayScreen(Screen):
 
         # Update animation
         self.update_animations(dt)
-
-
 
     def render(self):
         self.screen.fill((190, 212, 184))
@@ -421,6 +495,5 @@ class SelfPlayScreen(Screen):
 
             self.render()
 
-        # Khi vòng lặp kết thúc (self.running = False), tự động thoát Pygame
-        # (Lưu ý: self.app.quit() đã được gọi trong handle_input)
-        print("Exiting Self-Play Screen...")
+        print("Total score: ", self.score)
+        
