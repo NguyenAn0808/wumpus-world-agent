@@ -6,6 +6,7 @@ from .components import *
 from config import *
 from gui.console_ui import display_world
 import time
+from .agent.advanced_agent import AdvancedAgent
 
 
 def format_kb_for_printing(kb: set) -> str:
@@ -157,6 +158,23 @@ class GamePlay:
             self.message = "Agent is hopelessly stuck and has no plan. Climbing out."
             self.excute_action(Action.CLIMB_OUT)
             self.check_game_status()
+        # Tăng biến đếm
+        if isinstance(self.agent, AdvancedAgent):
+            self.agent.after_action(next_action)
+        
+        # Nếu Agent cần Wumpus di chuyển
+        if isinstance(self.agent, AdvancedAgent) and self.agent.need_wumpus_move():
+            print("--- Wumpuses are moving! ---")
+            self.world.move_wumpuses()
+        
+            # Nếu Wumpus và Agent ở cùng một ô => Agent chết
+            if self.agent.location in self.world.wumpus_locations:
+                self.agent.alive = False
+                self.status = GameStatus.DEAD_BY_WUMPUS
+                self.message = "Agent was eaten by a Wumpus!"
+                self.status = GameStatus.DEAD_BY_WUMPUS
+                return
+        
 
     def run_console(self):
         while not self.stop_game and self.agent.alive:
@@ -164,6 +182,8 @@ class GamePlay:
             time.sleep(1)
 
             self.run_single_action()
+            self.update_agent_state_after_action()
+
 
         self.message = f"Game Over | Final Score : {self.agent.score}"
 
