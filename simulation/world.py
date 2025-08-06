@@ -163,3 +163,39 @@ class World:
                 cell_items.remove('G')
                 print(f"World state: Gold removed from {gold_pos}.")
                 self.gold_location = None 
+    def move_wumpuses(self):
+        """
+        Di chuyển từng Wumpus một bước ngẫu nhiên:
+        - Chỉ di chuyển sang ô kề hợp lệ (Đông/Tây/Nam/Bắc).
+        - Không vào Pit.
+        - Không chồng lên Wumpus khác.
+        - Nếu không có ô hợp lệ -> đứng yên.
+        Sau đó, cập nhật lại percept (Stench).
+        """
+        new_positions = []
+        for wumpus in list(self.wumpus_locations):
+            possible_moves = []
+            for vec in DIRECTION_VECTORS.values():
+                new_pos = wumpus + vec
+                if not is_valid(new_pos, self.size):  # Tường
+                    continue
+                if 'P' in self.state[new_pos.y][new_pos.x]:  # Có hố
+                    continue
+                if new_pos in self.wumpus_locations:  # Wumpus khác
+                    continue
+                possible_moves.append(new_pos)
+
+            if possible_moves:
+                new_pos = random.choice(possible_moves)
+                # Xóa Wumpus ở ô cũ
+                self.state[wumpus.y][wumpus.x].discard('W')
+                self.remove_stench(wumpus)
+
+                # Thêm Wumpus ở ô mới
+                self.state[new_pos.y][new_pos.x].add('W')
+                self.add_adjacent_percept(new_pos, 'S')
+                new_positions.append(new_pos)
+            else:
+                new_positions.append(wumpus)
+
+        self.wumpus_locations = new_positions
