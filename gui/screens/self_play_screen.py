@@ -6,7 +6,7 @@ from gui.screens.screen import Screen
 
 # --- Layout Constants ---
 GRID_SIZE = 8
-CELL_SIZE = 80 # Increased cell size for better visibility
+CELL_SIZE = 70 # Increased cell size for better visibility
 GAME_AREA_WIDTH = GRID_SIZE * CELL_SIZE
 UI_PANEL_WIDTH = 400
 UI_PANEL_HEIGHT = 400
@@ -289,6 +289,21 @@ class SelfPlayScreen(Screen):
                 
                 scrollbar_handle_rect = pygame.Rect(scrollbar_track_rect.left, handle_y, 15, handle_height)
                 pygame.draw.rect(self.screen, (150, 150, 170), scrollbar_handle_rect) # Màu tay cầm
+
+            # Vẽ icon hướng dẫn chơi bên dưới game area
+            icon_keys = pygame.image.load(os.path.join("assets", "keys.png")).convert_alpha()
+            
+            icon_arrow = pygame.image.load(os.path.join("assets", "space.png")).convert_alpha()
+            # icon_arrow = pygame.transform.scale(icon_arrow)
+            icon_esc = pygame.image.load(os.path.join("assets",  "escape.png")).convert_alpha()
+            # icon_esc = pygame.transform.scale(icon_esc)
+            icon_enter = pygame.image.load(os.path.join("assets", "enter.png")).convert_alpha()
+            # icon_enter = pygame.transform.scale(icon_enter)
+            self.screen.blit(icon_arrow, (SCREEN_HEIGHT + 20, 100))
+            self.screen.blit(icon_keys, (SCREEN_HEIGHT + 20, 150))
+            self.screen.blit(icon_esc, (SCREEN_HEIGHT + 20, 200))
+            self.screen.blit(icon_enter, (SCREEN_HEIGHT + 20, 250))
+
 
     def add_to_log(self, message):
         self.action_log.append(message)
