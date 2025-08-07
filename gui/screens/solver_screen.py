@@ -178,7 +178,7 @@ class SolverScreen(Screen):
 
 
     def draw_log_box(self):
-        box_rect = pygame.Rect(540, 360, 240, 220)
+        box_rect = pygame.Rect(700, 360, 240, 220)
         pygame.draw.rect(self.screen, (30, 30, 30), box_rect)
         pygame.draw.rect(self.screen, (100, 100, 100), box_rect, 2)
         visible_lines = 10
@@ -189,7 +189,7 @@ class SolverScreen(Screen):
         return (angles[to_dir] - angles[from_dir]) % 360
     
     def draw_map(self, dt):
-        MAP_PREVIEW_SIZE = 512
+        MAP_PREVIEW_SIZE = 562
         MAP_TOPLEFT = (20, 44)
         cell_size = MAP_PREVIEW_SIZE // self.map_state['size']
 
@@ -209,17 +209,43 @@ class SolverScreen(Screen):
 
                 # Draw cell symbols
                 for symbol in cell:
-                    if symbol == 'W':
+                    # Draw cell symbols
+                    cell_content = set(cell)  
+                    rect = pygame.Rect(x, y, cell_size, cell_size)
+
+                    # --- Stench and Breeze handling ---
+                    has_stench = 'S' in cell_content
+                    has_breeze = 'B' in cell_content
+
+                    if has_stench and has_breeze:
+                        stench_icon = pygame.transform.scale(self.cell_icons['S'], (cell_size // 2, cell_size // 2))
+                        breeze_icon = pygame.transform.scale(self.cell_icons['B'], (cell_size // 2, cell_size // 2))
+                        self.screen.blit(stench_icon, rect.topleft)
+                        self.screen.blit(breeze_icon, (rect.topright[0] - cell_size // 2, rect.topright[1]))  # shift left for width
+                    elif has_stench:
+                        stench_icon = pygame.transform.scale(self.cell_icons['S'], (cell_size // 2, cell_size // 2))
+                        self.screen.blit(stench_icon, rect.topleft)
+                    elif has_breeze:
+                        breeze_icon = pygame.transform.scale(self.cell_icons['B'], (cell_size // 2, cell_size // 2))
+                        self.screen.blit(breeze_icon, rect.topleft)
+
+                    # --- Wumpus full cell ---
+                    if 'W' in cell_content:
                         frame = pygame.transform.scale(self.wumpus_idle_frames[self.wumpus_frame_index], (cell_size, cell_size))
-                        self.screen.blit(frame, (x, y))
-                    elif symbol in self.cell_icons:
-                        icon = self.cell_icons[symbol]
-                        if symbol in ['B', 'S']:
-                            icon = pygame.transform.scale(icon, (cell_size // 2, cell_size // 2))
-                            self.screen.blit(icon, (x, y))
-                        else:
-                            icon = pygame.transform.scale(icon, (cell_size, cell_size))
-                            self.screen.blit(icon, (x, y))
+                        self.screen.blit(frame, rect.topleft)
+
+                    # --- Pit (full cell icon) ---
+                    if 'P' in cell_content:
+                        pit_icon = pygame.transform.scale(self.cell_icons['P'], (cell_size, cell_size))
+                        self.screen.blit(pit_icon, rect.topleft)
+
+                    # --- Gold (full cell icon) ---
+                    if 'G' in cell_content:
+                        gold_icon = pygame.transform.scale(self.cell_icons['G'], (cell_size, cell_size))
+                        self.screen.blit(gold_icon, rect.topleft)
+
+
+                        
 
         # Draw arrow animation first so it's under the agent
         if self.arrow_animation["active"]:
@@ -375,7 +401,7 @@ class SolverScreen(Screen):
     def render_with_dt(self, dt):
         self.update_animation(dt)
 
-        self.screen.fill((10, 10, 10))
+        self.screen.fill((116, 141, 166))
         self.draw_map(dt)
         self.draw_log_box()
         pygame.display.flip()

@@ -4,6 +4,8 @@ import cv2
 
 from gui.screens.screen import Screen
 from gui.screens.menu_screen import MenuScreen
+from simulation import DIRECTION_VECTORS
+from simulation.components import Point, Direction
 # from gui.ui.button import Button
 
 # --- Layout Constants ---
@@ -106,7 +108,60 @@ class SelfPlayScreen(Screen):
         }
 
         self.terminating_states = ['wumpus', 'pit', 'climb out', 'error']
-            
+
+        # --- Action animations ---
+        self.shoot_anim_active = False
+        self.shoot_anim_timer = 0.0
+        self.shoot_anim_duration = 0.5  # seconds
+
+        self.grab_anim_active = False
+        self.grab_anim_timer = 0.0
+        self.grab_anim_duration = 0.5  # seconds
+
+        self.agent_grab_frames = self.load_agent_action_frames("grab")
+        self.agent_shoot_frames = self.load_agent_action_frames("shoot")
+
+        self.arrow_icon = pygame.image.load("assets/arrow.png").convert_alpha()
+
+        self.arrow_anim = {
+            "active": False,
+            "path": [],
+            "current_index": 0,
+            "progress": 0.0,
+            "speed": 6.0,  # cells per second
+            "direction": None
+        }
+
+
+    def load_agent_action_frames(self, action):
+        # Loads action animation frames like 'grab' or 'shoot
+        frames = []
+        i = 0
+        while True:
+            path = os.path.join("assets", "agent", action, f"{i}.png")
+            try:
+                frames.append(pygame.image.load(path).convert_alpha())
+                i += 1
+            except (pygame.error, FileNotFoundError):
+                break
+        return frames
+
+    def trigger_grab_animation(self):
+        self.grab_anim_active = True
+        self.grab_anim_timer = self.grab_anim_duration
+
+    def trigger_shoot_animation(self):
+        self.shoot_anim_active = True
+        self.shoot_anim_timer = self.shoot_anim_duration
+
+    def start_arrow_animation(self, direction, path):
+        self.arrow_anim["active"] = True
+        self.arrow_anim["path"] = path
+        self.arrow_anim["current_index"] = 0
+        self.arrow_anim["progress"] = 0.0
+        self.arrow_anim["direction"] = direction
+
+
     def load_popup_image(self, name):
         path = os.path.join("gui", "assets", f"{name}.png") # Giả sử ảnh nằm trong assets/ui
         try:
@@ -171,8 +226,8 @@ class SelfPlayScreen(Screen):
 
         icons['P'] = load_image('pit')
         icons['G'] = load_image('gold')
-        icons['S'] = load_image('stench')
-        icons['B'] = load_image('breeze')
+        icons['S'] = load_image('letter-s')
+        icons['B'] = load_image('letter-b')
         return icons
 
     def load_agent_animations(self):
@@ -224,6 +279,33 @@ class SelfPlayScreen(Screen):
         return mid_map.get((from_dir, to_dir))
 
     def update_animations(self, dt):
+        # Grab animation timer
+        if self.grab_anim_active:
+            self.grab_anim_timer -= dt
+            if self.grab_anim_timer <= 0:
+                self.grab_anim_active = False
+
+        # Shoot animation timer
+        if self.shoot_anim_active:
+            self.shoot_anim_timer -= dt
+            if self.shoot_anim_timer <= 0:
+                self.shoot_anim_active = False
+                # Start arrow AFTER shoot anim ends
+                if self.arrow_path:
+                    self.start_arrow_animation(self.agent_direction, self.arrow_path)
+
+        # Arrow animation
+        if self.arrow_anim["active"]:
+            self.arrow_anim["progress"] += dt * self.arrow_anim["speed"]
+
+            if self.arrow_anim["progress"] >= 1.0:
+                self.arrow_anim["progress"] = 0.0
+                self.arrow_anim["current_index"] += 1
+
+                if self.arrow_anim["current_index"] >= len(self.arrow_anim["path"]):
+                    self.arrow_anim["active"] = False
+
+
         if self.turning:
             self.turn_timer += dt
             if self.turn_timer >= self.turn_duration:
@@ -263,24 +345,61 @@ class SelfPlayScreen(Screen):
                 state = self.map_state['state']
                 if y < len(state) and x < len(state[y]):
                     cell_content = state[y][x]
+                    if 'S' in cell_content or 'B' in cell_content:
+                        if 'S' in cell_content and 'B' in cell_content:
+                            stench_icon = pygame.transform.scale(self.cell_icons['S'], (CELL_SIZE // 2, CELL_SIZE // 2))
+                            breeze_icon = pygame.transform.scale(self.cell_icons['B'], (CELL_SIZE // 2, CELL_SIZE // 2))
+
+                            self.screen.blit(stench_icon, rect.topleft)
+                            self.screen.blit(breeze_icon, (rect.topright[0] - CELL_SIZE // 2, rect.topright[1]))  # Adjust x for width
+                        elif 'S' in cell_content:
+                            stench_icon = pygame.transform.scale(self.cell_icons['S'], (CELL_SIZE // 2, CELL_SIZE // 2))
+                            self.screen.blit(stench_icon, rect.topleft)
+                        elif 'B' in cell_content:
+                            breeze_icon = pygame.transform.scale(self.cell_icons['B'], (CELL_SIZE // 2, CELL_SIZE // 2))
+                            self.screen.blit(breeze_icon, rect.topleft)
                     # Draw Wumpus
                     if 'W' in cell_content:
                         wumpus_frame = pygame.transform.scale(self.wumpus_frames[self.wumpus_frame_index], (CELL_SIZE, CELL_SIZE))
                         self.screen.blit(wumpus_frame, rect.topleft)
                     # Draw other icons
-                    for symbol in ['P', 'G', 'S', 'B']:
-                         if symbol in cell_content:
-                            icon = pygame.transform.scale(self.cell_icons[symbol], (CELL_SIZE, CELL_SIZE))
-                            self.screen.blit(icon, rect.topleft)
+                    if 'P' in cell_content:
+                        pit_icon = pygame.transform.scale(self.cell_icons['P'], (CELL_SIZE, CELL_SIZE))
+                        self.screen.blit(pit_icon, rect.topleft)
+                    if 'G' in cell_content:
+                        gold_icon = pygame.transform.scale(self.cell_icons['G'], (CELL_SIZE, CELL_SIZE))
+                        self.screen.blit(gold_icon, rect.topleft)
+
+        # -- Draw Arrow Animation ---
+        if self.arrow_anim["active"]:
+            pos = self.arrow_anim["path"][self.arrow_anim["current_index"]]
+            pixel_x = pos.x * CELL_SIZE
+            pixel_y = (self.map_state['size'] - 1 - pos.y) * CELL_SIZE
+
+            arrow_img = pygame.transform.scale(self.arrow_icon, (CELL_SIZE, CELL_SIZE))
+            rotated = {
+                'up': 90, 'down': -90, 'left': 180, 'right': 0
+            }[self.arrow_anim["direction"]]
+            rotated_img = pygame.transform.rotate(arrow_img, rotated)
+            self.screen.blit(rotated_img, (pixel_x, pixel_y))
 
         # --- Draw Agent ---
         if self.turning and self.turn_mid_frame:
             frame = self.agent_frames[self.turn_mid_frame][0]
+        elif self.shoot_anim_active and self.agent_shoot_frames:
+            index = int((self.shoot_anim_duration - self.shoot_anim_timer) / self.shoot_anim_duration * len(self.agent_shoot_frames))
+            index = min(index, len(self.agent_shoot_frames) - 1)
+            frame = self.agent_shoot_frames[index]
+        elif self.grab_anim_active and self.agent_grab_frames:
+            index = int((self.grab_anim_duration - self.grab_anim_timer) / self.grab_anim_duration * len(self.agent_grab_frames))
+            index = min(index, len(self.agent_grab_frames) - 1)
+            frame = self.agent_grab_frames[index]
         else:
             frame = self.agent_frames[self.agent_direction][self.agent_frame_index]
 
         scaled_agent = pygame.transform.scale(frame, (CELL_SIZE, CELL_SIZE))
         self.screen.blit(scaled_agent, self.agent_pix_pos)
+
 
     def draw_ui_panel(self):
         # 1. Vẽ nền cho panel
@@ -394,17 +513,21 @@ class SelfPlayScreen(Screen):
         self.has_arrow = False 
         self.score -= 10
 
-        direction_map = {
-            'up':    (0, 1),
-            'down':  (0, -1),
-            'left':  (-1, 0),
-            'right': (1, 0),
+        GUI_TO_ENUM_DIRECTION = {
+            'up': Direction.NORTH,
+            'down': Direction.SOUTH,
+            'left': Direction.WEST,
+            'right': Direction.EAST
         }
-        dx, dy = direction_map[self.agent_direction]
+        enum_direction = GUI_TO_ENUM_DIRECTION[self.agent_direction]
+        dx, dy = DIRECTION_VECTORS[enum_direction].x, DIRECTION_VECTORS[enum_direction].y
 
-        arrow_x, arrow_y = self.agent_pos
+
+        self.arrow_path = []
+        arrow_x, arrow_y = self.agent_pos[0] + dx, self.agent_pos[1] + dy
 
         while True:
+            self.arrow_path.append(pygame.Vector2(arrow_x, arrow_y))
             arrow_x += dx
             arrow_y += dy
 
@@ -491,10 +614,14 @@ class SelfPlayScreen(Screen):
                         self.has_gold = True
                         self.score += 10
                         self.add_to_log("GOLD!")
+                        self.trigger_grab_animation()  
                         self.map_state['state'][y][x].discard('G')
+                        
                 elif event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
                     if self.has_arrow:
+                        self.trigger_shoot_animation()  
                         self.shoot_arrow()
+
                 elif event.key == pygame.K_ESCAPE:
                     if self.agent_pos == [0, 0]:
                         if self.has_gold:
