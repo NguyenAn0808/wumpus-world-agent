@@ -49,12 +49,13 @@ class World:
         self.gold_location = None
 
         fixed_layout = {
-            Point(2, 1): {'P'},
-            Point(3, 0): {'P'},
+            Point(4, 0): {'P'},
+            Point(4, 2): {'P'},
             Point(3, 3): {'P'},
-            Point(1, 2): {'W'},
-            Point(2, 0): {'W'},
-            Point(0, 3): {'G'}
+            Point(3, 4): {'P'},
+            Point(4, 3): {'W'},
+            Point(3, 3): {'W'},
+            Point(1, 3): {'G'}
         }
 
         # 3. Áp dụng layout cố định vào self.state
@@ -100,16 +101,6 @@ class World:
             if random.random() < self.pit_prob:
                 self.state[cell.y][cell.x].add('P')
                 self.add_adjacent_percept(cell, 'B')
-
-        for y in range(self.size):
-            for x in range(self.size):
-                cell = Point(x, y)
-
-                if 'W' in self.state[y][x]:
-                    self.add_adjacent_percept(cell, 'S')
-                    
-                if 'P' in self.state[y][x]:
-                    self.add_adjacent_percept(cell, 'B')
 
     def add_adjacent_percept(self, center: Point, char: str):
         for vec in DIRECTION_VECTORS.values():
@@ -163,6 +154,7 @@ class World:
                 cell_items.remove('G')
                 print(f"World state: Gold removed from {gold_pos}.")
                 self.gold_location = None 
+   
     def move_wumpuses(self):
         """
         Di chuyển từng Wumpus một bước ngẫu nhiên:
@@ -172,30 +164,52 @@ class World:
         - Nếu không có ô hợp lệ -> đứng yên.
         Sau đó, cập nhật lại percept (Stench).
         """
-        new_positions = []
-        for wumpus in list(self.wumpus_locations):
-            possible_moves = []
-            for vec in DIRECTION_VECTORS.values():
-                new_pos = wumpus + vec
-                if not is_valid(new_pos, self.size):  # Tường
-                    continue
-                if 'P' in self.state[new_pos.y][new_pos.x]:  # Có hố
-                    continue
-                if new_pos in self.wumpus_locations:  # Wumpus khác
-                    continue
-                possible_moves.append(new_pos)
+        if not self.wumpus_locations:
+            return
+        
+        planned_moves = {}
+        current_wumpus_positions = set(self.wumpus_locations)
 
-            if possible_moves:
-                new_pos = random.choice(possible_moves)
-                # Xóa Wumpus ở ô cũ
-                self.state[wumpus.y][wumpus.x].discard('W')
-                self.remove_stench(wumpus)
+        for wumpus_pos in self.wumpus_locations:
+            chosen_direction_vector = random.choice(list(DIRECTION_VECTORS.values()))
+            intended_pos = wumpus_pos + chosen_direction_vector
 
-                # Thêm Wumpus ở ô mới
-                self.state[new_pos.y][new_pos.x].add('W')
-                self.add_adjacent_percept(new_pos, 'S')
-                new_positions.append(new_pos)
+            final_pos = wumpus_pos
+
+            is_move_valid = True
+            if not is_valid(intended_pos, self.size):          # Tường
+                is_move_valid = False
+            elif 'P' in self.state[intended_pos.y][intended_pos.x]: # Hố
+                is_move_valid = False
+            elif intended_pos in current_wumpus_positions:
+                is_move_valid = False
+
+            if is_move_valid:
+                final_pos = intended_pos
+
+            planned_moves[wumpus_pos] = final_pos # Di chuyển thành công
+
+        for old_pos in self.wumpus_locations:
+            self.state[old_pos.y][old_pos.x].discard('W')
+            self.remove_stench(old_pos)
+
+        new_wumpus_locations = list(planned_moves.values())
+
+        final_positions = []
+        occupied_destinations = set() # Two Wumpuses in one cell
+
+        for old_pos in self.wumpus_locations:
+            new_pos = planned_moves[old_pos]
+            if new_pos not in occupied_destinations:
+                final_positions.append(new_pos)
+                occupied_destinations.add(new_pos)
             else:
-                new_positions.append(wumpus)
+                # Vị trí mới đã bị chiếm, Wumpus này đứng yên ở vị trí cũ
+                final_positions.append(old_pos)
+        
+        self.wumpus_locations = final_positions
 
-        self.wumpus_locations = new_positions
+        for pos in self.wumpus_locations:
+            self.state[pos.y][pos.x].add('W')
+            self.add_adjacent_percept(pos, 'S')
+

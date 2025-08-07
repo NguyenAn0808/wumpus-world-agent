@@ -27,7 +27,39 @@ class Agent(ABC):
     @abstractmethod
     def update_percepts(self, percepts: set[Percept]):
         pass
+    
+    @abstractmethod
+    def reset_Wumpus_KB(self):
+        pass
+    
+    @abstractmethod
+    def reset_safe_cells(self):
+        pass
 
+    @abstractmethod
+    def after_action(self):
+        pass
+
+    @abstractmethod
+    def need_wumpus_move(self):
+        pass
+
+    @abstractmethod
+    def prepare_for_kb_reset(self, kb, inference):
+        pass
+
+    @abstractmethod
+    def process_scream(self, shot_path: list[Point]):
+        pass
+    
+    @abstractmethod
+    def update_wumpus_probabilities_after_move(self):
+        pass
+
+    @abstractmethod
+    def reground_probabilities_with_percepts(self):
+        pass
+    
     def get_neighbors(self, pos: Point) -> list[tuple[Point, Direction]]:
         neighbors = []
         for direction, vec in DIRECTION_VECTORS.items():

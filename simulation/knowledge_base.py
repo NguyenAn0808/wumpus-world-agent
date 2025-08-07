@@ -26,6 +26,32 @@ class KB:
         
         return CNF_clauses
     
+    def reset_dynamic_KB(self):
+        """
+        When in Advanced mode, Agent need to remove Stench, Wumpus out of KB.
+        """
+
+        new_wumpus_rules = set()
+        for clause in self.wumpus_rules:
+            if len(clause) == 1: # Literal W, S -> Delete
+                literal = list(clause)[0]
+                if literal.name.startswith('W') or literal.name.startswith('S'):
+                    continue
+
+            new_wumpus_rules.add(clause)
+
+        self.wumpus_rules = new_wumpus_rules  
+    
+    def retract_all_stench_facts(self):
+        """Removes all stench-related facts (Sxy and ¬Sxy) from the wumpus KB."""
+        clauses_to_remove = set()
+        for clause in self.wumpus_rules:
+            if len(clause) == 1:
+                literal = next(iter(clause))
+                if literal.name.startswith('S'):
+                    clauses_to_remove.add(clause)
+        self.wumpus_rules.difference_update(clauses_to_remove)
+
     def retract_and_tell_percept_facts(self, cell: Point, new_percepts: set[Percept]):
         x, y = cell.x, cell.y
         

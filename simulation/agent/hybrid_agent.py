@@ -16,6 +16,27 @@ class HybridAgent(Agent):
         self.proven_wumpuses: set[Point] = set()
         self.proven_pits: set[Point] = set()
 
+    def reset_internal_wumpus_knowledge(self):
+        pass
+
+    def reset_safe_cells(self):
+        pass
+
+    def after_action(self):
+        pass
+
+    def need_wumpus_move(self):
+        pass
+
+    def prepare_for_kb_reset(self, kb, inference):
+        pass
+
+    def reground_probabilities_with_percepts(self): 
+        pass
+
+    def update_wumpus_probabilities_after_move(self):
+        pass
+    
     def update_percepts(self, percepts: set[Percept]):
         has_new_danger = (Percept.STENCH in percepts or Percept.BREEZE in percepts) and \
                          not (Percept.STENCH in self.current_percepts or Percept.BREEZE in self.current_percepts)
@@ -219,6 +240,10 @@ class HybridAgent(Agent):
 
         print(f"A* could not find a path to any of {goals}.")
 
+    def process_scream(self, shot_path: list[Point]):
+        self.needs_full_rethink = True
+        self.planned_action.clear()
+        
     def find_safe_cells(self, kb: KB, inference: InferenceEngine) -> set[Point]:
         """"
         Function to find safe cells from uncertain cells

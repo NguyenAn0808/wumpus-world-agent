@@ -1,5 +1,5 @@
 from .world import World 
-from .agent import Agent
+from .agent import Agent, HybridAgent, AdvancedAgent, RandomAgent
 from .knowledge_base import KB
 from .inference import InferenceEngine
 from .components import *
@@ -133,12 +133,40 @@ class GamePlay:
     def stop_game(self):
         return self.status != GameStatus.IN_PROGRESS
     
+    def handle_Wumpus_move(self):
+        self.world.move_wumpuses()
+
+        if 'W' in self.world.state[self.agent.location.y][self.agent.location.x]:
+             self.agent.alive = False
+             self.status = GameStatus.DEAD_BY_WUMPUS
+             self.agent.score += SCORES["DEATH_WUMPUS"]
+             self.message = f"Agent at {self.agent.location} was eaten by a moving Wumpus!"
+             return False 
+        
+        self.kb.retract_all_stench_facts()
+        self.agent.update_wumpus_probabilities_after_move()
+
+        self.agent.needs_full_rethink = True
+        self.agent.planned_action.clear()
+        self.update_agent_state_after_action()
+
+        self.agent.reground_probabilities_with_percepts()
+
+        self.agent.needs_full_rethink = True
+
+        return True
+
     # GUI merge
     def run_single_action(self):
         if self.stop_game or not self.agent.alive:
             print("DEBUG: Game should stop. Exiting run_single_action.")
             return
 
+        if isinstance(self.agent, AdvancedAgent) and self.agent.need_wumpus_move():
+            if not self.handle_Wumpus_move():
+                self.check_game_status()
+                return
+            
         self.update_agent_state_after_action()
 
         if self.agent.just_encountered_danger and self.agent.planned_action:
@@ -153,29 +181,20 @@ class GamePlay:
         if self.agent.planned_action:
             next_action = self.agent.planned_action.popleft()
             self.excute_action(next_action)
+
+            if isinstance(self.agent, AdvancedAgent):
+                self.agent.after_action()
+
             self.check_game_status()
         else:
             self.message = "Agent is hopelessly stuck and has no plan. Climbing out."
             self.excute_action(Action.CLIMB_OUT)
-            self.check_game_status()
-        # Tăng biến đếm
-        if isinstance(self.agent, AdvancedAgent):
-            self.agent.after_action(next_action)
-        
-        # Nếu Agent cần Wumpus di chuyển
-        if isinstance(self.agent, AdvancedAgent) and self.agent.need_wumpus_move():
-            print("--- Wumpuses are moving! ---")
-            self.world.move_wumpuses()
-        
-            # Nếu Wumpus và Agent ở cùng một ô => Agent chết
-            if self.agent.location in self.world.wumpus_locations:
-                self.agent.alive = False
-                self.status = GameStatus.DEAD_BY_WUMPUS
-                self.message = "Agent was eaten by a Wumpus!"
-                self.status = GameStatus.DEAD_BY_WUMPUS
-                return
-        
 
+            if isinstance(self.agent, AdvancedAgent):
+                self.agent.after_action()
+
+            self.check_game_status()
+        
     def run_console(self):
         while not self.stop_game and self.agent.alive:
             self.display_current_state()
@@ -183,7 +202,6 @@ class GamePlay:
 
             self.run_single_action()
             self.update_agent_state_after_action()
-
 
         self.message = f"Game Over | Final Score : {self.agent.score}"
 
@@ -331,11 +349,13 @@ class GamePlay:
             for pos in shot_path:
                 if self.world.kill_wumpus(pos):
                     wumpus_killed = True
+                    killed_wumpus_pos = pos
                     break 
 
             if wumpus_killed:
                 self.message = "Agent shot an arrow. A loud SCREAM is heard!"
                 print(f"--- {self.message} ---")
+                self.agent.process_scream(shot_path)
                 self.kb.process_scream_event()
                 self.agent.planned_action.clear()
                 self.agent.needs_full_rethink = True
