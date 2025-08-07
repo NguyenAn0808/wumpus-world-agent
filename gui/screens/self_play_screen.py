@@ -863,8 +863,7 @@ class SelfPlayScreen(Screen):
         # Update animation
         self.update_animations(dt)
 
-    def render(self):
-                # Load video
+    def render(self):# Load video
         if self.cap:
             ret, frame = self.cap.read()
 

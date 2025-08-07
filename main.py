@@ -8,7 +8,7 @@ def main():
     # game = GamePlay(agent = agent, display_callback = display_world)
     # game.run_console()
 
-    # GUI
+        # GUI
     game = GameApp()
 
 if __name__ == "__main__":

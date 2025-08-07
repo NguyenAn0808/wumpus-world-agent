@@ -1,8 +1,10 @@
 import pygame
+import os
+import cv2
+
 from gui.screens.screen import Screen
 from simulation import *
 from simulation.game import GamePlay
-import os
 
 DIRECTION_TO_ANIMATION = {
     'north': 'up',
@@ -11,7 +13,6 @@ DIRECTION_TO_ANIMATION = {
     'west': 'left',
 }
 
-
 class SolverScreen(Screen):
     def __init__(self, app, mode, map_state, world : World):
         super().__init__(app)
@@ -19,7 +20,7 @@ class SolverScreen(Screen):
         self.map_state = map_state
         self.running = True
         self.screen = app.screen
-        
+        self.width, self.height = self.screen.get_size()
         
         # Init Pygame
         self.screen = app.screen
@@ -27,8 +28,8 @@ class SolverScreen(Screen):
         self.clock = pygame.time.Clock()
 
         # Font & Icons
-        self.font = pygame.font.SysFont(None, 24)
-        self.log_font = pygame.font.SysFont(None, 20)
+        self.font = pygame.font.SysFont("perpetua", 24)
+        self.log_font = pygame.font.SysFont("perpetua", 20)
         self.cell_icons = self.load_cell_icons()
 
         self.agent_frame = 0
@@ -97,6 +98,18 @@ class SolverScreen(Screen):
 
         self.auto_solve_delay = 1.0  # seconds per step
         self.auto_solve_timer = 0.0
+
+        self.cap = cv2.VideoCapture("gui/assets/menu.mp4")
+
+        original_title_image = pygame.image.load("gui/assets/frame.png").convert_alpha()
+        self.title_image = pygame.transform.scale(original_title_image, (1350, 700))
+
+        self.panel_rect = pygame.Rect(self.width / 2 + 230, self.height / 2 - 80, 400, 400) 
+        
+        self.score_rect = pygame.Rect(self.width / 2 + 230, self.height / 2 - 280, 400, 180) 
+        
+        self.ui_font_title = pygame.font.SysFont("perpetua", 24, bold=True)
+        self.ui_font_log = pygame.font.SysFont("perpetua", 20)
         
 
     def receive_game_state(self, state_dict):
@@ -112,7 +125,6 @@ class SolverScreen(Screen):
         self.gameloop.run_single_action()
         new_state = self.gameloop.get_game_state()
         self.receive_game_state(new_state)  # Update visuals
-    #    self.logs.append(self.map_state.get('message', ''))  # Display latest message
 
     def load_cell_icons(self):
         def load(name):
@@ -176,22 +188,14 @@ class SolverScreen(Screen):
             except FileNotFoundError:
                 break
         return frames
-
-
-    def draw_log_box(self):
-        box_rect = pygame.Rect(700, 360, 240, 220)
-        pygame.draw.rect(self.screen, (30, 30, 30), box_rect)
-        pygame.draw.rect(self.screen, (100, 100, 100), box_rect, 2)
-        visible_lines = 10
-        
-
+    
     def get_turn_angle(self, from_dir, to_dir):
         angles = {'up': 0, 'right': -90, 'down': -180, 'left': -270}
         return (angles[to_dir] - angles[from_dir]) % 360
     
     def draw_map(self, dt):
-        MAP_PREVIEW_SIZE = 562
-        MAP_TOPLEFT = (20, 24)
+        MAP_PREVIEW_SIZE = 600
+        MAP_TOPLEFT = (self.width / 2 - 390, self.height / 2 - 280)
         cell_size = MAP_PREVIEW_SIZE // self.map_state['size']
 
         agent_pos = self.map_state['agent_location']
@@ -245,9 +249,6 @@ class SolverScreen(Screen):
                         gold_icon = pygame.transform.scale(self.cell_icons['G'], (cell_size, cell_size))
                         self.screen.blit(gold_icon, rect.topleft)
 
-
-                        
-
         # Draw arrow animation first so it's under the agent
         if self.arrow_animation["active"]:
             self.animate_arrow(dt, cell_size, MAP_TOPLEFT)
@@ -278,11 +279,10 @@ class SolverScreen(Screen):
             else:
                 self.screen.blit(scaled_frame, (x, y))
 
-
-            overlay_x = MAP_TOPLEFT[0]
-            overlay_y = MAP_TOPLEFT[1] + MAP_PREVIEW_SIZE + 10  # 10 pixels gap
-            overlay_width = 120
-            overlay_height = 40  # height of percept overlay area
+            overlay_x = self.width / 2 - 600
+            overlay_y = self.height / 2 - 230
+            overlay_width = 150  # total width for 3 squares
+            overlay_height = 50  # height of each square
 
             overlay_rect = pygame.Rect(overlay_x, overlay_y, overlay_width, overlay_height)
             pygame.draw.rect(self.screen, (255, 255, 255), overlay_rect)
@@ -303,6 +303,73 @@ class SolverScreen(Screen):
                 if symbol in cell_symbols and icon:
                     scaled_icon = pygame.transform.scale(icon, (square_width, overlay_height))
                     self.screen.blit(scaled_icon, square_rect.topleft)
+
+                title_font = pygame.font.SysFont("perpetua", 35, bold=True)
+        
+        # Draw Pannel
+        border_color = (255, 255, 255)  
+        border_thickness = 3         
+        border_radius_val = 10       
+
+        # Log box
+        pygame.draw.rect(self.screen, border_color, self.panel_rect, width=border_thickness, border_radius=border_radius_val)
+
+        # Score box
+        pygame.draw.rect(self.screen, border_color, self.score_rect, width=border_thickness, border_radius=border_radius_val)
+
+        info_title = title_font.render("Info", True, (255, 255, 255))
+        info_rect = info_title.get_rect(topleft= (self.width / 2 + 400, self.height / 2 - 280))
+        self.screen.blit(info_title, info_rect)
+
+        font = pygame.font.SysFont("perpetua", 26, bold=True)
+        title_text = font.render("Score: ", True, (255, 255, 255))
+        title_rect = title_text.get_rect(topleft= (self.width / 2 + 300, self.height /2 - 240))
+        self.app.screen.blit(title_text, title_rect)
+
+        title_text = font.render("Arrow: ", True, (255, 255, 255))
+        title_rect = title_text.get_rect(topleft= (self.width / 2 + 300, self.height /2 - 195))
+        self.app.screen.blit(title_text, title_rect)
+
+        title_text = font.render("Gold: ", True, (255, 255, 255))
+        title_rect = title_text.get_rect(topleft= (self.width / 2 + 300, self.height /2 - 150))
+        self.app.screen.blit(title_text, title_rect)
+
+        value_surf = self.ui_font_title.render(str(self.agent.score), True, (255, 255, 255)) 
+        value_rect = value_surf.get_rect(topleft= (self.width / 2 + 380, self.height /2 - 237))
+        self.screen.blit(value_surf, value_rect)
+
+        if self.agent.has_arrow:
+            text = "Yes"
+        else:
+            text = "No"
+        value_surf = self.ui_font_title.render(text, True, (255, 255, 255)) 
+        value_rect = value_surf.get_rect(topleft= (self.width / 2 + 390, self.height /2 - 192))
+        self.screen.blit(value_surf, value_rect)
+        
+        if self.agent.has_gold:
+            text = "Yes"
+        else:
+            text = "No"
+        value_surf = self.ui_font_title.render(text, True, (255, 255, 255)) 
+        value_rect = value_surf.get_rect(topleft= (self.width / 2 + 380, self.height /2 - 147))
+        self.screen.blit(value_surf, value_rect)
+
+        icon_temp = pygame.image.load(os.path.join("assets", "score.png")).convert_alpha()
+        icon = pygame.transform.scale(icon_temp, (40, 40))
+        self.screen.blit(icon, (self.width / 2 + 245, self.height /2 - 245))
+
+        icon_temp = pygame.image.load(os.path.join("assets", "arrow.png")).convert_alpha()
+        icon = pygame.transform.scale(icon_temp, (50, 50))
+        self.screen.blit(icon, (self.width / 2 + 235, self.height /2 - 195))
+
+        icon_temp = pygame.image.load(os.path.join("assets", "gold.png")).convert_alpha()
+        icon = pygame.transform.scale(icon_temp, (50, 50))
+        self.screen.blit(icon, (self.width / 2 + 240, self.height /2 - 170))
+
+        # --- Phần Action Log ---
+        log_title = title_font.render("Action Log", True, (255, 255, 255))
+        log_rect = log_title.get_rect(topleft= (self.width / 2 + 350, self.height / 2 - 75))
+        self.screen.blit(log_title, log_rect)
 
 
     def handle_input(self):
@@ -388,9 +455,6 @@ class SolverScreen(Screen):
         if self.last_action in ["SHOOT", "GRAB"] and self.shoot_anim_timer <= 0 and not self.arrow_animation["active"]:
             self.last_action = None
 
-
-
-
     def animate_arrow(self, dt, cell_size, top_left):
         anim = self.arrow_animation
         path = anim.get("path")
@@ -421,18 +485,45 @@ class SolverScreen(Screen):
         }[self.arrow_animation["direction"]]
         rotated = pygame.transform.rotate(arrow_img, rotation)
         self.screen.blit(rotated, (pixel_x, pixel_y))
-            
-
-
-
-
 
     def render_with_dt(self, dt):
         self.update_animation(dt)
 
-        self.screen.fill((116, 141, 166))
+        # Load video
+        if self.cap:
+            ret, frame = self.cap.read()
+
+            if not ret:
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.cap.read()
+ 
+            if ret:
+                screen_size = self.app.screen.get_size()
+                frame = cv2.resize(frame, (screen_size[0], screen_size[1]))
+  
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                video_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+
+                self.app.screen.blit(video_surface, (0, 0))
+        else:
+            self.app.screen.fill((0, 0, 0))
+
+        title_rect = self.title_image.get_rect(center= (self.width / 2, self.height / 2 + 20))
+        self.app.screen.blit(self.title_image, title_rect)
+
+        title_font = pygame.font.SysFont("perpetua", 65, bold=True)
+        if self.mode == "hybrid":
+            title_text = title_font.render("HYBRID MODE", True, (255, 255, 255))
+        elif self.mode == "random":
+            title_text = title_font.render("RANDOM MODE", True, (255, 255, 255))
+        else:
+            title_text = title_font.render("ADVANCED MODE", True, (255, 255, 255))
+
+        title_rect = title_text.get_rect(center=(self.width / 2, 40))
+        self.app.screen.blit(title_text, title_rect)
+
         self.draw_map(dt)
-        self.draw_log_box()
         pygame.display.flip()
 
         self.auto_solve_timer += dt
