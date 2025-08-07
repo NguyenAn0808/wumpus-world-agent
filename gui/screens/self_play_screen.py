@@ -10,7 +10,7 @@ from simulation.components import Point, Direction
 
 # --- Layout Constants ---
 GRID_SIZE = 8
-CELL_SIZE = 70 # Increased cell size for better visibility
+CELL_SIZE = 75 # Increased cell size for better visibility
 GAME_AREA_WIDTH = GRID_SIZE * CELL_SIZE
 UI_PANEL_WIDTH = 400
 UI_PANEL_HEIGHT = 400
@@ -26,14 +26,15 @@ class SelfPlayScreen(Screen):
 
         # --- Pygame Setup ---
         self.screen = app.screen
+        self.width, self.height = self.screen.get_size()
 
         pygame.display.set_caption(f"Wumpus Solver - {self.game_mode.capitalize()} Mode")
         self.clock = pygame.time.Clock()
         self.running = True
 
         # --- Fonts ---
-        self.ui_font_title = pygame.font.SysFont("Arial", 24, bold=True)
-        self.ui_font_log = pygame.font.SysFont("Consolas", 16)
+        self.ui_font_title = pygame.font.SysFont("perpetua", 24, bold=True)
+        self.ui_font_log = pygame.font.SysFont("perpetua", 20)
         self.action_log = ["Game Started..."]
 
         # --- Asset Loading ---
@@ -87,10 +88,12 @@ class SelfPlayScreen(Screen):
         self.log_full_surface = None        
         self.auto_scroll_to_bottom = True  
 
-        self.panel_rect = pygame.Rect(GAME_AREA_WIDTH, 0, UI_PANEL_WIDTH, UI_PANEL_HEIGHT) 
+        self.panel_rect = pygame.Rect(self.width / 2 + 230, self.height / 2 - 80, UI_PANEL_WIDTH, UI_PANEL_HEIGHT) 
+        
+        self.score_rect = pygame.Rect(self.width / 2 + 230, self.height / 2 - 280, UI_PANEL_WIDTH, 180) 
 
         # Popups endgame
-        self.overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        self.overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         self.overlay.fill((0, 0, 0, 150)) # Màu đen, độ mờ 150/255
         self.game_over_state = None  
 
@@ -134,6 +137,10 @@ class SelfPlayScreen(Screen):
             "direction": None
         }
 
+        self.cap = cv2.VideoCapture("gui/assets/menu.mp4")
+
+        original_title_image = pygame.image.load("gui/assets/frame.png").convert_alpha()
+        self.title_image = pygame.transform.scale(original_title_image, (1350, 700))
 
     def load_agent_action_frames(self, action):
         # Loads action animation frames like 'grab' or 'shoot
@@ -208,7 +215,7 @@ class SelfPlayScreen(Screen):
         """Converts grid coordinates (bottom-left origin) to pixel coordinates (top-left origin)."""
         pix_x = grid_x * CELL_SIZE
         pix_y = SCREEN_HEIGHT - ((grid_y + 1) * CELL_SIZE)
-        return [pix_x, pix_y]
+        return [pix_x + (self.width / 2 - 390), pix_y + (self.height / 2 - 280)]
 
     def load_cell_icons(self):
         """Loads all icons for game objects like pits, gold, etc."""
@@ -337,7 +344,7 @@ class SelfPlayScreen(Screen):
         for y in range(GRID_SIZE):
             for x in range(GRID_SIZE):
                 # --- Draw Grid and Cell Contents ---
-                rect = pygame.Rect(x * CELL_SIZE, (GRID_SIZE - 1 - y) * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                rect = pygame.Rect((self.width / 2 - 390) + x * CELL_SIZE, (self.height / 2 - 280)+(GRID_SIZE - 1 - y) * CELL_SIZE, CELL_SIZE, CELL_SIZE)
                 pygame.draw.rect(self.screen, (45, 102, 91), rect) # Cell background
                 pygame.draw.rect(self.screen, (35, 80, 72), rect, 2) # Cell border
 
@@ -373,8 +380,8 @@ class SelfPlayScreen(Screen):
         # -- Draw Arrow Animation ---
         if self.arrow_anim["active"]:
             pos = self.arrow_anim["path"][self.arrow_anim["current_index"]]
-            pixel_x = pos.x * CELL_SIZE
-            pixel_y = (self.map_state['size'] - 1 - pos.y) * CELL_SIZE
+            pixel_x = pos.x * CELL_SIZE + (self.width / 2 - 390)
+            pixel_y = (self.map_state['size'] - 1 - pos.y) * CELL_SIZE + (self.height / 2 - 280)
 
             arrow_img = pygame.transform.scale(self.arrow_icon, (CELL_SIZE, CELL_SIZE))
             rotated = {
@@ -401,16 +408,76 @@ class SelfPlayScreen(Screen):
         self.screen.blit(scaled_agent, self.agent_pix_pos)
 
     def draw_ui_panel(self):
-        # 1. Vẽ nền cho panel
+        title_font = pygame.font.SysFont("perpetua", 35, bold=True)
         
-        pygame.draw.rect(self.screen, (220, 220, 240), self.panel_rect) # Nền xám nhạt
+        # Draw Pannel
+        border_color = (255, 255, 255)  
+        border_thickness = 3         
+        border_radius_val = 10       
+
+        # Log box
+        pygame.draw.rect(self.screen, border_color, self.panel_rect, width=border_thickness, border_radius=border_radius_val)
+
+        # Score box
+        pygame.draw.rect(self.screen, border_color, self.score_rect, width=border_thickness, border_radius=border_radius_val)
+
+        info_title = title_font.render("Info", True, (255, 255, 255))
+        info_rect = info_title.get_rect(topleft= (self.width / 2 + 400, self.height / 2 - 280))
+        self.screen.blit(info_title, info_rect)
+
+        font = pygame.font.SysFont("perpetua", 26, bold=True)
+        title_text = font.render("Score: ", True, (255, 255, 255))
+        title_rect = title_text.get_rect(topleft= (self.width / 2 + 300, self.height /2 - 240))
+        self.app.screen.blit(title_text, title_rect)
+
+        title_text = font.render("Arrow: ", True, (255, 255, 255))
+        title_rect = title_text.get_rect(topleft= (self.width / 2 + 300, self.height /2 - 195))
+        self.app.screen.blit(title_text, title_rect)
+
+        title_text = font.render("Gold: ", True, (255, 255, 255))
+        title_rect = title_text.get_rect(topleft= (self.width / 2 + 300, self.height /2 - 150))
+        self.app.screen.blit(title_text, title_rect)
+
+        # --- Hiển thị Điểm số ---
+        value_surf = self.ui_font_title.render(str(self.score), True, (255, 255, 255)) 
+        value_rect = value_surf.get_rect(topleft= (self.width / 2 + 380, self.height /2 - 237))
+        self.screen.blit(value_surf, value_rect)
+        
+        if self.has_arrow:
+            text = "Yes"
+        else:
+            text = "No"
+        value_surf = self.ui_font_title.render(text, True, (255, 255, 255)) 
+        value_rect = value_surf.get_rect(topleft= (self.width / 2 + 390, self.height /2 - 192))
+        self.screen.blit(value_surf, value_rect)
+        
+        if self.has_gold:
+            text = "Yes"
+        else:
+            text = "No"
+        value_surf = self.ui_font_title.render(text, True, (255, 255, 255)) 
+        value_rect = value_surf.get_rect(topleft= (self.width / 2 + 380, self.height /2 - 147))
+        self.screen.blit(value_surf, value_rect)
+
+        icon_temp = pygame.image.load(os.path.join("assets", "score.png")).convert_alpha()
+        icon = pygame.transform.scale(icon_temp, (40, 40))
+        self.screen.blit(icon, (self.width / 2 + 245, self.height /2 - 245))
+
+        icon_temp = pygame.image.load(os.path.join("assets", "arrow.png")).convert_alpha()
+        icon = pygame.transform.scale(icon_temp, (50, 50))
+        self.screen.blit(icon, (self.width / 2 + 235, self.height /2 - 195))
+
+        icon_temp = pygame.image.load(os.path.join("assets", "gold.png")).convert_alpha()
+        icon = pygame.transform.scale(icon_temp, (50, 50))
+        self.screen.blit(icon, (self.width / 2 + 240, self.height /2 - 170))
 
         # --- Phần Action Log ---
-        log_title = self.ui_font_title.render("Action Log", True, (0, 0, 0))
-        self.screen.blit(log_title, (GAME_AREA_WIDTH + 20, 20))
+        log_title = title_font.render("Action Log", True, (255, 255, 255))
+        log_rect = log_title.get_rect(topleft= (self.width / 2 + 350, self.height / 2 - 75))
+        self.screen.blit(log_title, log_rect)
 
         # 2. Định nghĩa khu vực hiển thị cho log (viewable area)
-        log_view_rect = pygame.Rect(GAME_AREA_WIDTH, 60, UI_PANEL_WIDTH, UI_PANEL_HEIGHT - 80) # Dành không gian cho tiêu đề và lề
+        log_view_rect = pygame.Rect(self.width / 2 + 220, self.height / 2 - 35, UI_PANEL_WIDTH, UI_PANEL_HEIGHT - 55) # Dành không gian cho tiêu đề và lề
 
         # 3. Tạo/Cập nhật Surface chứa toàn bộ log nếu cần
         if self.log_surface_needs_update and self.action_log:
@@ -418,12 +485,11 @@ class SelfPlayScreen(Screen):
             full_height = len(self.action_log) * self.log_line_height
             # Tạo một surface mới đủ lớn
             self.log_full_surface = pygame.Surface((log_view_rect.width - 40, full_height)) # -40 để có lề
-            self.log_full_surface.fill((220, 220, 240)) # Màu nền giống panel
 
             # Vẽ từng dòng log lên surface lớn này
             for i, entry in enumerate(self.action_log):
-                log_text = self.ui_font_log.render(entry, True, (50, 50, 50))
-                self.log_full_surface.blit(log_text, (0, i * self.log_line_height))
+                log_text = self.ui_font_log.render(entry, True, (255, 255, 255))
+                self.log_full_surface.blit(log_text, (10, i * self.log_line_height))
             
             self.log_surface_needs_update = False # Đánh dấu là đã cập nhật
 
@@ -453,7 +519,7 @@ class SelfPlayScreen(Screen):
             if max_scroll_y > 0:
                 # Vị trí và kích thước của đường ray
                 scrollbar_track_rect = pygame.Rect(self.panel_rect.right - 20, log_view_rect.top, 15, log_view_rect.height)
-                pygame.draw.rect(self.screen, (200, 200, 220), scrollbar_track_rect) # Màu đường ray
+                pygame.draw.rect(self.screen, (255, 255, 255), scrollbar_track_rect) # Màu đường ray
 
                 # Tính toán kích thước và vị trí của tay cầm
                 # Chiều cao tay cầm tỉ lệ với lượng nội dung có thể thấy
@@ -465,20 +531,42 @@ class SelfPlayScreen(Screen):
                 handle_y = scrollbar_track_rect.top + (scroll_percentage * (scrollbar_track_rect.height - handle_height))
                 
                 scrollbar_handle_rect = pygame.Rect(scrollbar_track_rect.left, handle_y, 15, handle_height)
-                pygame.draw.rect(self.screen, (150, 150, 170), scrollbar_handle_rect) # Màu tay cầm
+                pygame.draw.rect(self.screen, (180, 180, 180), scrollbar_handle_rect) # Màu tay cầm
 
             # Vẽ icon hướng dẫn chơi bên dưới game area
-            icon_keys = pygame.image.load(os.path.join("assets", "keys.png")).convert_alpha()
-            icon_arrow = pygame.image.load(os.path.join("assets", "space.png")).convert_alpha()
-            # icon_arrow = pygame.transform.scale(icon_arrow)
-            icon_esc = pygame.image.load(os.path.join("assets",  "escape.png")).convert_alpha()
-            # icon_esc = pygame.transform.scale(icon_esc)
-            icon_enter = pygame.image.load(os.path.join("assets", "enter.png")).convert_alpha()
-            # icon_enter = pygame.transform.scale(icon_enter)
-            self.screen.blit(icon_arrow, (SCREEN_HEIGHT + 400, 100))
-            self.screen.blit(icon_keys, (SCREEN_HEIGHT + 400, 150))
-            self.screen.blit(icon_esc, (SCREEN_HEIGHT + 400, 200))
-            self.screen.blit(icon_enter, (SCREEN_HEIGHT + 400, 250))
+
+            icon_temp_keys = pygame.image.load(os.path.join("assets", "keys.png")).convert_alpha()
+            icon_keys = pygame.transform.scale(icon_temp_keys, (90, 90))
+
+            icon_temp_space = pygame.image.load(os.path.join("assets", "space.png")).convert_alpha()
+            icon_space = pygame.transform.scale(icon_temp_space, (90, 90))
+            
+            icon_temp_enter = pygame.image.load(os.path.join("assets", "enter.png")).convert_alpha()
+            icon_enter = pygame.transform.scale(icon_temp_enter, (90, 90))
+
+            icon_temp_esc = pygame.image.load(os.path.join("assets", "escape.png")).convert_alpha()
+            icon_esc = pygame.transform.scale(icon_temp_esc, (90, 90))
+   
+            self.screen.blit(icon_keys, (self.width / 2 - 625, self.height /2 - 170))
+            self.screen.blit(icon_space, (self.width / 2 - 630, self.height /2 - 70))
+            self.screen.blit(icon_enter, (self.width / 2 - 630, self.height /2  + 30))
+            self.screen.blit(icon_esc, (self.width / 2 - 630, self.height /2 + 130))
+
+            title_text = title_font.render("Move", True, (255, 255, 255))
+            title_rect = title_text.get_rect(topleft= (self.width / 2 - 515, self.height /2 - 140))
+            self.app.screen.blit(title_text, title_rect)
+
+            title_text = title_font.render("Pick", True, (255, 255, 255))
+            title_rect = title_text.get_rect(topleft= (self.width / 2 - 515, self.height /2 - 40))
+            self.app.screen.blit(title_text, title_rect)
+
+            title_text = title_font.render("Shoot", True, (255, 255, 255))
+            title_rect = title_text.get_rect(topleft= (self.width / 2 - 515, self.height /2 + 60))
+            self.app.screen.blit(title_text, title_rect)
+
+            title_text = title_font.render("Climb", True, (255, 255, 255))
+            title_rect = title_text.get_rect(topleft= (self.width / 2 - 515, self.height /2 + 160))
+            self.app.screen.blit(title_text, title_rect)
 
     def draw_game_over_video(self):
         self.screen.blit(self.overlay, (0, 0))
@@ -734,7 +822,34 @@ class SelfPlayScreen(Screen):
         self.update_animations(dt)
 
     def render(self):
-        self.screen.fill((190, 212, 184))
+                # Load video
+        if self.cap:
+            ret, frame = self.cap.read()
+
+            if not ret:
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.cap.read()
+ 
+            if ret:
+                screen_size = self.app.screen.get_size()
+                frame = cv2.resize(frame, (screen_size[0], screen_size[1]))
+  
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                video_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+
+                self.app.screen.blit(video_surface, (0, 0))
+        else:
+            self.app.screen.fill((0, 0, 0))
+
+        title_rect = self.title_image.get_rect(center= (self.width / 2, self.height / 2 + 20))
+        self.app.screen.blit(self.title_image, title_rect)
+
+        title_font = pygame.font.SysFont("perpetua", 65, bold=True)
+        title_text = title_font.render("PLAYER MODE", True, (255, 255, 255))
+        title_rect = title_text.get_rect(center=(self.width / 2, 40))
+        
+        self.app.screen.blit(title_text, title_rect)
         
         self.draw_game_area()
         self.draw_ui_panel()
@@ -755,5 +870,4 @@ class SelfPlayScreen(Screen):
 
             self.render()
 
-        print("Total score: ", self.score)
         
