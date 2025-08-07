@@ -2,6 +2,7 @@ import pygame
 from gui.screens.screen import Screen
 from simulation import *
 from simulation.game import GamePlay
+import os
 
 DIRECTION_TO_ANIMATION = {
     'north': 'up',
@@ -190,7 +191,7 @@ class SolverScreen(Screen):
     
     def draw_map(self, dt):
         MAP_PREVIEW_SIZE = 562
-        MAP_TOPLEFT = (20, 44)
+        MAP_TOPLEFT = (20, 24)
         cell_size = MAP_PREVIEW_SIZE // self.map_state['size']
 
         agent_pos = self.map_state['agent_location']
@@ -276,6 +277,32 @@ class SolverScreen(Screen):
                 self.screen.blit(rotated_frame, frame_rect.topleft)
             else:
                 self.screen.blit(scaled_frame, (x, y))
+
+
+            overlay_x = MAP_TOPLEFT[0]
+            overlay_y = MAP_TOPLEFT[1] + MAP_PREVIEW_SIZE + 10  # 10 pixels gap
+            overlay_width = 120
+            overlay_height = 40  # height of percept overlay area
+
+            overlay_rect = pygame.Rect(overlay_x, overlay_y, overlay_width, overlay_height)
+            pygame.draw.rect(self.screen, (255, 255, 255), overlay_rect)
+
+            square_width = overlay_width // 3
+
+            # Fetch symbols at agent's current cell
+            agent_pos = self.map_state['agent_location']
+            cell_symbols = set(self.map_state['state'][agent_pos.y][agent_pos.x])
+
+            # Define percepts in order
+            icons = [('B', pygame.image.load(os.path.join("assets", "breeze.png")).convert_alpha()), ('S', pygame.image.load(os.path.join("assets", "stench.png")).convert_alpha()), ('G', pygame.image.load(os.path.join("assets", "glitter.png")).convert_alpha())]
+
+            for i, (symbol, icon) in enumerate(icons):
+                square_rect = pygame.Rect(overlay_x + i * square_width, overlay_y, square_width, overlay_height)
+                pygame.draw.rect(self.screen, (30, 30, 30), square_rect, 1)  # border for each square
+
+                if symbol in cell_symbols and icon:
+                    scaled_icon = pygame.transform.scale(icon, (square_width, overlay_height))
+                    self.screen.blit(scaled_icon, square_rect.topleft)
 
 
     def handle_input(self):
@@ -394,6 +421,8 @@ class SolverScreen(Screen):
         }[self.arrow_animation["direction"]]
         rotated = pygame.transform.rotate(arrow_img, rotation)
         self.screen.blit(rotated, (pixel_x, pixel_y))
+            
+
 
 
 

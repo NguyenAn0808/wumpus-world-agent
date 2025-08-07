@@ -545,6 +545,34 @@ class SelfPlayScreen(Screen):
                 scrollbar_handle_rect = pygame.Rect(scrollbar_track_rect.left, handle_y, 15, handle_height)
                 pygame.draw.rect(self.screen, (180, 180, 180), scrollbar_handle_rect) # Màu tay cầm
 
+
+            # Draw percepts information 
+            overlay_x = self.width / 2 - 600
+            overlay_y = self.height / 2 - 230
+            overlay_width = 150  # total width for 3 squares
+            overlay_height = 50  # height of each square
+
+            # Draw the black background rectangle for the percept overlay
+            overlay_rect = pygame.Rect(overlay_x, overlay_y, overlay_width, overlay_height)
+            pygame.draw.rect(self.screen, (255, 255, 255), overlay_rect)
+
+            square_width = overlay_width // 3
+
+            # Define percept icons
+            icons = [('B', pygame.image.load(os.path.join("assets", "breeze.png")).convert_alpha()), ('S', pygame.image.load(os.path.join("assets", "stench.png")).convert_alpha()), ('G', pygame.image.load(os.path.join("assets", "glitter.png")).convert_alpha())]
+
+            # Get symbols in the agent's current cell
+            agent_x, agent_y = self.agent_pos
+            cell_symbols = self.map_state['state'][agent_y][agent_x] if 0 <= agent_y < GRID_SIZE and 0 <= agent_x < GRID_SIZE else set()
+
+            for i, (symbol, icon) in enumerate(icons):
+                square_rect = pygame.Rect(overlay_x + i * square_width, overlay_y, square_width, overlay_height)
+                pygame.draw.rect(self.screen, (30, 30, 30), square_rect, 1)  # draw border for each square
+
+                if symbol in cell_symbols and icon:
+                    scaled_icon = pygame.transform.scale(icon, (square_width, overlay_height))
+                    self.screen.blit(scaled_icon, square_rect.topleft)
+
             # Vẽ icon hướng dẫn chơi bên dưới game area
 
             icon_temp_keys = pygame.image.load(os.path.join("assets", "keys.png")).convert_alpha()
