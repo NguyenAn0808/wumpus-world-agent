@@ -112,6 +112,8 @@ class SelfPlayScreen(Screen):
         # --- Action animations ---
         self.shoot_anim_active = False
         self.shoot_anim_timer = 0.0
+        self.hit_wumpus_delay_timer = 0.0
+        self.hit_wumpus_delay_duration = 0.5
         self.shoot_anim_duration = 0.5  # seconds
 
         self.grab_anim_active = False
@@ -122,7 +124,7 @@ class SelfPlayScreen(Screen):
         self.agent_shoot_frames = self.load_agent_action_frames("shoot")
 
         self.arrow_icon = pygame.image.load("assets/arrow.png").convert_alpha()
-
+        self.arrow_path = []
         self.arrow_anim = {
             "active": False,
             "path": [],
@@ -160,7 +162,6 @@ class SelfPlayScreen(Screen):
         self.arrow_anim["current_index"] = 0
         self.arrow_anim["progress"] = 0.0
         self.arrow_anim["direction"] = direction
-
 
     def load_popup_image(self, name):
         path = os.path.join("gui", "assets", f"{name}.png") # Giả sử ảnh nằm trong assets/ui
@@ -291,8 +292,7 @@ class SelfPlayScreen(Screen):
             if self.shoot_anim_timer <= 0:
                 self.shoot_anim_active = False
                 # Start arrow AFTER shoot anim ends
-                if self.arrow_path:
-                    self.start_arrow_animation(self.agent_direction, self.arrow_path)
+                self.shoot_arrow()
 
         # Arrow animation
         if self.arrow_anim["active"]:
@@ -399,7 +399,6 @@ class SelfPlayScreen(Screen):
 
         scaled_agent = pygame.transform.scale(frame, (CELL_SIZE, CELL_SIZE))
         self.screen.blit(scaled_agent, self.agent_pix_pos)
-
 
     def draw_ui_panel(self):
         # 1. Vẽ nền cho panel
@@ -510,7 +509,7 @@ class SelfPlayScreen(Screen):
 
     def shoot_arrow(self):
         self.add_to_log("You shoot an arrow...")
-        self.has_arrow = False 
+        self.has_arrow = False
         self.score -= 10
 
         GUI_TO_ENUM_DIRECTION = {
@@ -522,34 +521,37 @@ class SelfPlayScreen(Screen):
         enum_direction = GUI_TO_ENUM_DIRECTION[self.agent_direction]
         dx, dy = DIRECTION_VECTORS[enum_direction].x, DIRECTION_VECTORS[enum_direction].y
 
+        self.arrow_path = []  
+        current_arrow_x = self.agent_pos[0] + dx
+        current_arrow_y = self.agent_pos[1] + dy
 
-        self.arrow_path = []
-        arrow_x, arrow_y = self.agent_pos[0] + dx, self.agent_pos[1] + dy
+        while 0 <= current_arrow_x < GRID_SIZE and 0 <= current_arrow_y < GRID_SIZE:
+            self.arrow_path.append(Point(current_arrow_x, current_arrow_y))
 
-        while True:
-            self.arrow_path.append(pygame.Vector2(arrow_x, arrow_y))
-            arrow_x += dx
-            arrow_y += dy
+            cell_content = self.map_state['state'][current_arrow_y][current_arrow_x]
 
-            # Kiểm tra xem mũi tên có bay ra ngoài bản đồ không
-            if not (0 <= arrow_x < GRID_SIZE and 0 <= arrow_y < GRID_SIZE):
-                break 
-
-            cell_content = self.map_state['state'][arrow_y][arrow_x]
+            # Kiểm tra nếu trúng Wumpus
             if 'W' in cell_content:
                 self.add_to_log("SCREAM")
-                self.start_game_over_video('scream')
-                
-                # Delete wumpus
-                self.map_state['state'][arrow_y][arrow_x].discard('W')
-                
-                # Delete Stenches
+                self.game_over_state = 'hit_wumpus_depanding'
+                self.hit_wumpus_delay_timer = self.hit_wumpus_delay_duration # Bắt đầu đếm ngược
+                    
+
+                # Xóa Wumpus khỏi bản đồ
+                self.map_state['state'][current_arrow_y][current_arrow_x].discard('W')
+
+                # Xóa các mùi hôi (Stench) xung quanh vị trí Wumpus vừa bị tiêu diệt
                 for off_x, off_y in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                    stench_x, stench_y = arrow_x + off_x, arrow_y + off_y
+                    stench_x, stench_y = current_arrow_x + off_x, current_arrow_y + off_y
                     if 0 <= stench_x < GRID_SIZE and 0 <= stench_y < GRID_SIZE:
                         self.map_state['state'][stench_y][stench_x].discard('S')
+                
+                break
 
-                break 
+            current_arrow_x += dx
+            current_arrow_y += dy
+
+        self.start_arrow_animation(self.agent_direction, self.arrow_path)
 
     def handle_input(self):
         if self.game_over_state:
@@ -620,7 +622,6 @@ class SelfPlayScreen(Screen):
                 elif event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
                     if self.has_arrow:
                         self.trigger_shoot_animation()  
-                        self.shoot_arrow()
 
                 elif event.key == pygame.K_ESCAPE:
                     if self.agent_pos == [0, 0]:
@@ -669,7 +670,7 @@ class SelfPlayScreen(Screen):
             self.time_per_anim_frame = self.move_duration / num_frames
 
     def update(self, dt):
-        if self.game_over_state:
+        if self.game_over_state and self.game_over_state not in ['hit_wumpus_depanding']:
             if self.video_capture:
                 # Thời gian chờ giữa các frame video
                 time_per_frame = 1.0 / self.video_fps
@@ -709,6 +710,11 @@ class SelfPlayScreen(Screen):
                     self.running = False
 
             return 
+
+        if self.game_over_state == 'hit_wumpus_depanding':
+            self.hit_wumpus_delay_timer -= dt
+            if self.hit_wumpus_delay_timer <= 0:
+                self.start_game_over_video('scream')
 
         if self.is_moving:
             self.move_progress += dt / self.move_duration
