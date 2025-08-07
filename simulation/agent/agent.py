@@ -29,10 +29,6 @@ class Agent(ABC):
         pass
     
     @abstractmethod
-    def reset_Wumpus_KB(self):
-        pass
-    
-    @abstractmethod
     def reset_safe_cells(self):
         pass
 
