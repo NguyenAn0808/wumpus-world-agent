@@ -142,6 +142,9 @@ class SelfPlayScreen(Screen):
         original_title_image = pygame.image.load("gui/assets/frame.png").convert_alpha()
         self.title_image = pygame.transform.scale(original_title_image, (1350, 700))
 
+        self.visited_cells = set()
+        self.visited_cells.add(tuple(self.agent_pos))
+
     def load_agent_action_frames(self, action):
         # Loads action animation frames like 'grab' or 'shoot
         frames = []
@@ -348,6 +351,14 @@ class SelfPlayScreen(Screen):
                 pygame.draw.rect(self.screen, (45, 102, 91), rect) # Cell background
                 pygame.draw.rect(self.screen, (35, 80, 72), rect, 2) # Cell border
 
+                if (x, y) not in self.visited_cells:
+                    fog_color = (20, 20, 30, 200)
+                    fog_surface = pygame.Surface(rect.size, pygame.SRCALPHA)
+                    fog_surface.fill(fog_color)
+                    self.screen.blit(fog_surface, rect.topleft)
+
+                    continue
+
                 # --- Draw Items from map_state ---
                 state = self.map_state['state']
                 if y < len(state) and x < len(state[y]):
@@ -380,15 +391,16 @@ class SelfPlayScreen(Screen):
         # -- Draw Arrow Animation ---
         if self.arrow_anim["active"]:
             pos = self.arrow_anim["path"][self.arrow_anim["current_index"]]
-            pixel_x = pos.x * CELL_SIZE + (self.width / 2 - 390)
-            pixel_y = (self.map_state['size'] - 1 - pos.y) * CELL_SIZE + (self.height / 2 - 280)
+            if (pos.x, pos.y) in self.visited_cells:
+                pixel_x = pos.x * CELL_SIZE + (self.width / 2 - 390)
+                pixel_y = (self.map_state['size'] - 1 - pos.y) * CELL_SIZE + (self.height / 2 - 280)
 
-            arrow_img = pygame.transform.scale(self.arrow_icon, (CELL_SIZE, CELL_SIZE))
-            rotated = {
-                'up': 90, 'down': -90, 'left': 180, 'right': 0
-            }[self.arrow_anim["direction"]]
-            rotated_img = pygame.transform.rotate(arrow_img, rotated)
-            self.screen.blit(rotated_img, (pixel_x, pixel_y))
+                arrow_img = pygame.transform.scale(self.arrow_icon, (CELL_SIZE, CELL_SIZE))
+                rotated = {
+                    'up': 90, 'down': -90, 'left': 180, 'right': 0
+                }[self.arrow_anim["direction"]]
+                rotated_img = pygame.transform.rotate(arrow_img, rotated)
+                self.screen.blit(rotated_img, (pixel_x, pixel_y))
 
         # --- Draw Agent ---
         if self.turning and self.turn_mid_frame:
@@ -811,6 +823,8 @@ class SelfPlayScreen(Screen):
                 self.is_moving = False
                 self.agent_pix_pos = self.move_target_pix_pos[:] # Snap vào vị trí cuối cùng
                 self.add_to_log(f"Move to ({self.agent_pos[0]}, {self.agent_pos[1]})")
+
+                self.visited_cells.add(tuple(self.agent_pos))
 
                 self.check_consequences()
             else:
