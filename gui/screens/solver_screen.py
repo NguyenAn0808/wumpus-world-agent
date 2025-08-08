@@ -89,7 +89,15 @@ class SolverScreen(Screen):
         world_size = state['size']
 
         # Wrap world into GamePlay logic
-        self.agent = HybridAgent(start_location, start_direction, world_size)
+        if self.mode == "hybrid":
+            self.agent = HybridAgent(start_location, start_direction, world_size)
+        elif self.mode == "random":
+            self.agent = RandomAgent(start_location, start_direction, world_size)
+        elif self.mode == "advanced":  # advanced mode
+            self.agent = AdvancedAgent(start_location, start_direction, world_size)
+        else:
+            raise ValueError(f"Unknown mode: {self.mode}")
+        
         self.gameloop = GamePlay(agent=self.agent, display_callback=self.receive_game_state)
 
         self.gameloop.world = world
@@ -110,6 +118,8 @@ class SolverScreen(Screen):
         
         self.ui_font_title = pygame.font.SysFont("perpetua", 24, bold=True)
         self.ui_font_log = pygame.font.SysFont("perpetua", 20)
+        self.show_map = False
+        self.known_visited_cells = set() 
         
 
     def receive_game_state(self, state_dict):
@@ -120,6 +130,7 @@ class SolverScreen(Screen):
         self.agent_dir = state_dict['agent_direction']
         self.last_action = state_dict['last_action']
         self.shoot_path = state_dict.get('shot_path', None)
+        self.known_visited_cells = state_dict.get('known_visited_cells', set())
 
     def auto_solve_step(self):
         self.gameloop.run_single_action()
@@ -202,12 +213,19 @@ class SolverScreen(Screen):
         agent_dir_enum = self.map_state['agent_direction']
         direction = agent_dir_enum.name.lower() if agent_dir_enum else 'right'
         anim_dir = DIRECTION_TO_ANIMATION.get(direction, 'right')
-
+        
         for row_idx, row in enumerate(self.map_state['state']):
             for col_idx, cell in enumerate(row):
                 x = MAP_TOPLEFT[0] + col_idx * cell_size
                 y = MAP_TOPLEFT[1] + (self.map_state['size'] - 1 - row_idx) * cell_size
-
+                cell_coords = (col_idx, row_idx)
+                visited_cells = {(p.x, p.y) for p in self.gameloop.agent.visited_cells}
+                
+                if not self.show_map and cell_coords not in visited_cells:
+                    pygame.draw.rect(self.screen, (20, 20, 20), (x, y, cell_size, cell_size))
+                    pygame.draw.rect(self.screen, (35, 80, 72), (x, y, cell_size, cell_size), 1)
+                    continue
+                
                 # Draw cell background
                 pygame.draw.rect(self.screen, (45, 102, 91), (x, y, cell_size, cell_size))
                 pygame.draw.rect(self.screen, (35, 80, 72), (x, y, cell_size, cell_size), 2)
@@ -371,13 +389,26 @@ class SolverScreen(Screen):
         log_rect = log_title.get_rect(topleft= (self.width / 2 + 350, self.height / 2 - 75))
         self.screen.blit(log_title, log_rect)
 
+        self.checkbox_rect = pygame.Rect(self.width // 2 - 630, self.height // 2 + 200, 20, 20)
+
+
+        pygame.draw.rect(self.screen, (255, 255, 255), self.checkbox_rect, 2)
+
+        if self.show_map:
+            pygame.draw.rect(self.screen, (255, 255, 255), self.checkbox_rect)
+
+        label = self.ui_font_title.render("Remove Walls", True, (255, 255, 255))
+        self.screen.blit(label, (self.checkbox_rect.right + 10, self.checkbox_rect.top - 2))
+
+
 
     def handle_input(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                pass
+                if self.checkbox_rect.collidepoint(event.pos):
+                    self.show_map = not self.show_map
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
                     self.log_scroll = max(0, self.log_scroll - 1)

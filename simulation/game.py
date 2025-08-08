@@ -53,6 +53,7 @@ class GamePlay:
 
         self.update_agent_state_after_action()
         self.display_callback = display_callback
+        
 
     def get_game_state(self) -> dict:
         
