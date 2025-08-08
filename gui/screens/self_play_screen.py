@@ -596,7 +596,7 @@ class SelfPlayScreen(Screen):
             title_rect = title_text.get_rect(topleft= (self.width / 2 - 515, self.height /2 - 140))
             self.app.screen.blit(title_text, title_rect)
 
-            title_text = title_font.render("Pick", True, (255, 255, 255))
+            title_text = title_font.render("Grab", True, (255, 255, 255))
             title_rect = title_text.get_rect(topleft= (self.width / 2 - 515, self.height /2 - 40))
             self.app.screen.blit(title_text, title_rect)
 
@@ -627,16 +627,16 @@ class SelfPlayScreen(Screen):
         cell_content = self.map_state['state'][y][x]
 
         if 'W' in cell_content:
-            self.add_to_log("Wumpus!")
+            self.add_to_log("Died by Wumpus!")
             self.score -= 1000
             self.start_game_over_video('wumpus')
         elif 'P' in cell_content:
-            self.add_to_log("Pit!")
+            self.add_to_log("Died by Pit!")
             self.score -= 1000
             self.start_game_over_video('pit')
 
     def shoot_arrow(self):
-        self.add_to_log("You shoot an arrow...")
+        self.add_to_log("You shoot an arrow")
         self.has_arrow = False
         self.score -= 10
 
@@ -743,7 +743,7 @@ class SelfPlayScreen(Screen):
                     if 'G' in self.map_state['state'][y][x]:
                         self.has_gold = True
                         self.score += 10
-                        self.add_to_log("GOLD!")
+                        self.add_to_log("Grab gold!")
                         self.trigger_grab_animation()  
                         self.map_state['state'][y][x].discard('G')
                         
@@ -756,6 +756,7 @@ class SelfPlayScreen(Screen):
                         if self.has_gold:
                             self.score += 1000
 
+                        self.add_to_log("Climb out!")
                         self.start_game_over_video('climb out')
 
                 if desired_dir:

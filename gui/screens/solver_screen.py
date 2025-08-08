@@ -120,7 +120,18 @@ class SolverScreen(Screen):
         self.ui_font_log = pygame.font.SysFont("perpetua", 20)
         self.show_map = False
         self.known_visited_cells = set() 
+
+        self.action_log = ["Game Started..."]    
+        self.log_scroll_y = 0                     
+        self.log_line_height = 20                  
+        self.log_surface_needs_update = True       
+        self.log_full_surface = None               
+        self.auto_scroll_to_bottom = True
         
+    def add_to_log(self, message):
+        self.action_log.append(message)
+        self.log_surface_needs_update = True
+        self.auto_scroll_to_bottom = True
 
     def receive_game_state(self, state_dict):
         self.map_state = state_dict
@@ -128,7 +139,28 @@ class SolverScreen(Screen):
         self.agent_x = state_dict['agent_location'].x
         self.agent_y = state_dict['agent_location'].y
         self.agent_dir = state_dict['agent_direction']
+
         self.last_action = state_dict['last_action']
+        if self.last_action:
+            if self.last_action:
+                log_message = f"Action: {self.last_action}"
+                
+                # Thêm chi tiết nếu có
+                # if self.last_action in ["TURN_LEFT", "TURN_RIGHT", "FORWARD"]:
+                #     new_pos = state_dict['agent_location']
+                #     new_dir = state_dict['agent_direction'].name.capitalize()
+                #     log_message += f" -> Pos:({new_pos.x},{new_pos.y}), Dir:{new_dir}"
+                # elif self.last_action == "SHOOT":
+                #     log_message += " an arrow!"
+                #     if "SCREAM" in state_dict.get("percepts", []):
+                #         self.add_to_log("... Heard a SCREAM!") # Thêm log riêng cho Scream
+                # elif self.last_action == "GRAB":
+                #     log_message += " the GOLD!"
+                # elif self.last_action == "CLIMB":
+                #     log_message += " out of the cave."
+
+                self.add_to_log(log_message)
+
         self.shoot_path = state_dict.get('shot_path', None)
         self.known_visited_cells = state_dict.get('known_visited_cells', set())
 
@@ -221,15 +253,19 @@ class SolverScreen(Screen):
                 cell_coords = (col_idx, row_idx)
                 visited_cells = {(p.x, p.y) for p in self.gameloop.agent.visited_cells}
                 
-                if not self.show_map and cell_coords not in visited_cells:
-                    pygame.draw.rect(self.screen, (20, 20, 20), (x, y, cell_size, cell_size))
-                    pygame.draw.rect(self.screen, (35, 80, 72), (x, y, cell_size, cell_size), 1)
-                    continue
-                
                 # Draw cell background
                 pygame.draw.rect(self.screen, (45, 102, 91), (x, y, cell_size, cell_size))
                 pygame.draw.rect(self.screen, (35, 80, 72), (x, y, cell_size, cell_size), 2)
 
+                if not self.show_map and cell_coords not in visited_cells:
+                    rect = pygame.Rect(x, y, cell_size, cell_size)
+                    fog_color = (20, 20, 30, 200) 
+                    fog_surface = pygame.Surface(rect.size, pygame.SRCALPHA)
+                    fog_surface.fill(fog_color)
+                    self.screen.blit(fog_surface, rect.topleft)
+
+                    continue
+            
                 # Draw cell symbols
                 for symbol in cell:
                     # Draw cell symbols
@@ -400,6 +436,59 @@ class SolverScreen(Screen):
         label = self.ui_font_title.render("Remove Walls", True, (255, 255, 255))
         self.screen.blit(label, (self.checkbox_rect.right + 10, self.checkbox_rect.top - 2))
 
+        log_view_rect = pygame.Rect(self.width / 2 + 240, self.height / 2 - 35, 400, 400 - 55)
+
+        # 2. Tạo/Cập nhật Surface chứa toàn bộ log nếu cần
+        if self.log_surface_needs_update and self.action_log:
+            full_height = len(self.action_log) * self.log_line_height
+            # -20 cho lề phải để thanh cuộn không đè lên chữ
+            self.log_full_surface = pygame.Surface((log_view_rect.width - 20, full_height))
+            #self.log_full_surface.fill((30, 69, 62)) # Tô màu nền cho log để dễ đọc hơn
+
+            for i, entry in enumerate(self.action_log):
+                log_text = self.ui_font_log.render(f"{i+1}. {entry}", True, (255, 255, 255))
+                self.log_full_surface.blit(log_text, (20, i * self.log_line_height))
+            
+            self.log_surface_needs_update = False
+
+        # 3. Vẽ phần log có thể thấy được lên màn hình
+        if self.log_full_surface:
+            # Tính toán giá trị cuộn tối đa
+            max_scroll_y = self.log_full_surface.get_height() - log_view_rect.height
+            if max_scroll_y < 0:
+                max_scroll_y = 0
+
+            if self.auto_scroll_to_bottom:
+                self.log_scroll_y = max_scroll_y
+            
+            self.log_scroll_y = max(0, min(self.log_scroll_y, max_scroll_y))
+            
+            source_rect = pygame.Rect(0, self.log_scroll_y, log_view_rect.width, log_view_rect.height)
+            dest_pos = (log_view_rect.left + 5, log_view_rect.top) # +5 để có lề trái
+            
+            self.screen.blit(self.log_full_surface, dest_pos, source_rect)
+
+            # 4. Vẽ thanh cuộn (Scrollbar)
+            if max_scroll_y > 0:
+                scrollbar_track_rect = pygame.Rect(
+                    log_view_rect.right - 20, 
+                    log_view_rect.top, 
+                    15, 
+                    log_view_rect.height
+                )
+                pygame.draw.rect(self.screen, (255, 255, 255), scrollbar_track_rect)
+
+                handle_height = max(20, log_view_rect.height * (log_view_rect.height / self.log_full_surface.get_height()))
+                scroll_percentage = self.log_scroll_y / max_scroll_y
+                handle_y = scrollbar_track_rect.top + (scroll_percentage * (scrollbar_track_rect.height - handle_height))
+                
+                scrollbar_handle_rect = pygame.Rect(scrollbar_track_rect.left, handle_y, 15, handle_height)
+                pygame.draw.rect(self.screen, (180, 180, 180), scrollbar_handle_rect)
+
+        # --- KẾT THÚC PHẦN SỬA ĐỔI ---
+
+        # Phần vẽ checkbox giữ nguyên
+        self.checkbox_rect = pygame.Rect(self.width // 2 - 630, self.height // 2 + 200, 20, 20)
 
 
     def handle_input(self):
@@ -409,11 +498,17 @@ class SolverScreen(Screen):
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if self.checkbox_rect.collidepoint(event.pos):
                     self.show_map = not self.show_map
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
-                    self.log_scroll = max(0, self.log_scroll - 1)
-                elif event.key == pygame.K_DOWN:
-                    self.log_scroll = min(len(self.logs) - 10, self.log_scroll + 1)
+
+                if self.panel_rect.collidepoint(event.pos):
+                    if event.button == 4: # Scroll Up
+                        self.log_scroll_y = max(0, self.log_scroll_y - self.log_line_height * 3)
+                        self.auto_scroll_to_bottom = False # Người dùng đã tự cuộn, tắt tự động
+                    elif event.button == 5: # Scroll Down
+                        self.log_scroll_y += self.log_line_height * 3
+                        if self.log_full_surface:
+                            max_scroll = self.log_full_surface.get_height() - self.panel_rect.height
+                            if self.log_scroll_y >= max_scroll - self.log_line_height:
+                                self.auto_scroll_to_bottom = True
 
 
     def render(self):
