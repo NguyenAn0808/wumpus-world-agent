@@ -53,7 +53,11 @@ class SolverScreen(Screen):
         self.prev_dir = None
 
         # Wumpus idle animation
-        self.wumpus_idle_frames = self.load_wumpus_idle()
+        if(mode == 'hybrid' or mode == 'random'):
+            self.wumpus_idle_frames = self.load_wumpus_idle()
+        else:
+            self.wumpus_idle_frames = self.load_wumpus_walking()
+
         self.wumpus_frame_index = 0
         self.wumpus_frame_timer = 0.0
         self.wumpus_frame_delay = 0.1
@@ -223,6 +227,18 @@ class SolverScreen(Screen):
                 break
         return frames
 
+    def load_wumpus_walking(self):
+        frames = []
+        i = 0
+        while True:
+            path = f"assets/wumpus/walking/{i}.png"
+            try:
+                frames.append(pygame.image.load(path).convert_alpha())
+                i += 1
+            except FileNotFoundError:
+                break
+        return frames
+    
     def load_wumpus_idle(self):
         frames = []
         i = 0
@@ -569,20 +585,20 @@ class SolverScreen(Screen):
         # --- SHOOT animation trigger ---
         if self.last_action == "SHOOT":
             if self.shoot_anim_timer <= 0 and not self.arrow_animation["active"]:
-                # 1. First time entering SHOOT: start shooting animation
-                if self.shoot_path and self.shoot_anim_timer == 0.0:
-                    self.shoot_anim_timer = self.shoot_anim_duration
+                if self.shoot_path:
+                    # Start arrow animation now
+                    self.arrow_animation.update({
+                        "active": True,
+                        "path": self.shoot_path.copy(),
+                        "current_index": 0,
+                        "progress": 0.0,
+                        "direction": agent_dir
+                    })
 
-                # 2. When shoot animation is finished: start arrow
-                elif self.shoot_anim_timer <= 0:
-                    self.arrow_animation["active"] = True
-                    self.arrow_animation["path"] = self.shoot_path.copy()
-                    self.arrow_animation["current_index"] = 0
-                    self.arrow_animation["progress"] = 0.0
-                    self.arrow_animation["direction"] = agent_dir
-
-        if self.last_action in ["SHOOT", "GRAB"] and self.shoot_anim_timer <= 0 and not self.arrow_animation["active"]:
+        # Reset last_action only when arrow is done
+        if self.last_action == "SHOOT" and not self.arrow_animation["active"] and self.shoot_anim_timer <= 0:
             self.last_action = None
+
 
     def animate_arrow(self, dt, cell_size, top_left):
         anim = self.arrow_animation
