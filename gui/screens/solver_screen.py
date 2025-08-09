@@ -141,25 +141,28 @@ class SolverScreen(Screen):
         self.agent_dir = state_dict['agent_direction']
 
         self.last_action = state_dict['last_action']
+        
         if self.last_action:
-            if self.last_action:
-                log_message = f"Action: {self.last_action}"
-                
-                # Thêm chi tiết nếu có
-                # if self.last_action in ["TURN_LEFT", "TURN_RIGHT", "FORWARD"]:
-                #     new_pos = state_dict['agent_location']
-                #     new_dir = state_dict['agent_direction'].name.capitalize()
-                #     log_message += f" -> Pos:({new_pos.x},{new_pos.y}), Dir:{new_dir}"
-                # elif self.last_action == "SHOOT":
-                #     log_message += " an arrow!"
-                #     if "SCREAM" in state_dict.get("percepts", []):
-                #         self.add_to_log("... Heard a SCREAM!") # Thêm log riêng cho Scream
-                # elif self.last_action == "GRAB":
-                #     log_message += " the GOLD!"
-                # elif self.last_action == "CLIMB":
-                #     log_message += " out of the cave."
+            log_message = f"Action: {self.last_action}"
+            
+            if self.last_action == "TURN_LEFT":
+                log_message = "Turn left"
+            elif self.last_action == "TURN_RIGHT":
+                log_message = "Turn right"
+            elif self.last_action == "MOVE_FORWARD":
+                new_pos = state_dict['agent_location']
+                new_dir = state_dict['agent_direction'].name.capitalize()
+                log_message = f"Move to ({new_pos.x}, {new_pos.y})"
+            elif self.last_action == "SHOOT":
+                log_message = "You shoot an arrow"
+                if "SCREAM" in state_dict.get("percepts", []):
+                    self.add_to_log("SCREAM!")
+            elif self.last_action == "GRAB":
+                log_message = " Grab gold!"
+            elif self.last_action == "CLIMB_OUT":
+                log_message = " Climb out!"
 
-                self.add_to_log(log_message)
+            self.add_to_log(log_message)
 
         self.shoot_path = state_dict.get('shot_path', None)
         self.known_visited_cells = state_dict.get('known_visited_cells', set())
@@ -446,7 +449,7 @@ class SolverScreen(Screen):
             #self.log_full_surface.fill((30, 69, 62)) # Tô màu nền cho log để dễ đọc hơn
 
             for i, entry in enumerate(self.action_log):
-                log_text = self.ui_font_log.render(f"{i+1}. {entry}", True, (255, 255, 255))
+                log_text = self.ui_font_log.render(f"{entry}", True, (255, 255, 255))
                 self.log_full_surface.blit(log_text, (20, i * self.log_line_height))
             
             self.log_surface_needs_update = False

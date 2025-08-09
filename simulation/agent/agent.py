@@ -74,6 +74,8 @@ class Agent(ABC):
             if neighbor not in self.visited_cells:
                 self.frontier_cells.add(neighbor)
 
+        self.last_action = Action.MOVE_FORWARD
+
     def turn_left(self):
         self.direction = TURN_LEFT_MAP[self.direction]
         self.last_action = Action.TURN_LEFT
