@@ -661,7 +661,7 @@ class SelfPlayScreen(Screen):
             # Kiểm tra nếu trúng Wumpus
             if 'W' in cell_content:
                 self.add_to_log("SCREAM")
-                self.game_over_state = 'hit_wumpus_depanding'
+                self.game_over_state = 'hit_wumpus_pending'
                 self.hit_wumpus_delay_timer = self.hit_wumpus_delay_duration # Bắt đầu đếm ngược
                     
 
@@ -799,7 +799,7 @@ class SelfPlayScreen(Screen):
             self.time_per_anim_frame = self.move_duration / num_frames
 
     def update(self, dt):
-        if self.game_over_state and self.game_over_state not in ['hit_wumpus_depanding']:
+        if self.game_over_state and self.game_over_state not in ['hit_wumpus_pending']:
             if self.video_capture:
                 # Thời gian chờ giữa các frame video
                 time_per_frame = 1.0 / self.video_fps
@@ -840,7 +840,7 @@ class SelfPlayScreen(Screen):
 
             return 
 
-        if self.game_over_state == 'hit_wumpus_depanding':
+        if self.game_over_state == 'hit_wumpus_pending':
             self.hit_wumpus_delay_timer -= dt
             if self.hit_wumpus_delay_timer <= 0:
                 self.start_game_over_video('scream')

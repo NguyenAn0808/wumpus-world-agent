@@ -604,16 +604,23 @@ class SolverScreen(Screen):
             return
 
         pos = path[anim["current_index"]]
-        pixel_x = top_left[0] + pos.x * cell_size
-        pixel_y = top_left[1] + (self.map_state["size"] - 1 - pos.y) * cell_size
+        visited_cells_coords = {(p.x, p.y) for p in self.gameloop.agent.visited_cells}
+    
+        arrow_cell_coords = (pos.x, pos.y)
 
-        # Rotate arrow image
-        arrow_img = pygame.transform.scale(self.arrow_icon, (cell_size, cell_size))
-        rotation = {
-            'north': 90, 'south': -90, 'west': 180, 'east': 0
-        }[self.arrow_animation["direction"]]
-        rotated = pygame.transform.rotate(arrow_img, rotation)
-        self.screen.blit(rotated, (pixel_x, pixel_y))
+        if arrow_cell_coords in visited_cells_coords:
+            pixel_x = top_left[0] + pos.x * cell_size
+            pixel_y = top_left[1] + (self.map_state["size"] - 1 - pos.y) * cell_size
+
+            arrow_img = pygame.transform.scale(self.arrow_icon, (cell_size, cell_size))
+            rotation = {
+                'north': 90, 'south': -90, 'west': 180, 'east': 0
+            }.get(self.arrow_animation["direction"], 0) 
+            
+            rotated = pygame.transform.rotate(arrow_img, rotation)
+          
+            rect = rotated.get_rect(center=(pixel_x + cell_size // 2, pixel_y + cell_size // 2))
+            self.screen.blit(rotated, rect.topleft)
 
     def render_with_dt(self, dt):
         self.update_animation(dt)
