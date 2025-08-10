@@ -10,7 +10,6 @@ class RandomAgent(Agent):
         self.direction = direction
         self.size = size
 
-        self.visited = set()
         self.safe_cells = set()
         self.path = deque()
         self.current_percepts = set()
@@ -19,6 +18,7 @@ class RandomAgent(Agent):
         self.cells_learned_from = set()
         self.proven_wumpuses = set()
         self.visited_cells = set()
+
         self.proven_pits = set()
         self.frontier_cells = set()
         self.just_encountered_danger = set()
@@ -30,8 +30,8 @@ class RandomAgent(Agent):
     
     def update_percepts(self, percepts: set[Percept]):
         self.current_percepts = percepts
-        self.visited.add(self.location)
-        self.safe_cells.add(self.location)
+        self.visited_cells.add(self.location)
+        self.safe_cells.add(self.location)  
 
         # Thêm ô xung quanh vào safe_cells nếu nằm trong bản đồ
         for neighbor, _ in self.get_neighbors(self.location):
@@ -85,7 +85,7 @@ class RandomAgent(Agent):
 
     def find_next_safe_unvisited(self):
         """Chọn ô an toàn chưa thăm."""
-        candidates = [cell for cell in self.safe_cells if cell not in self.visited]
+        candidates = [cell for cell in self.safe_cells if cell not in self.visited_cells]
         return random.choice(candidates) if candidates else None
 
     def bfs(self, start: Point, goal: Point):

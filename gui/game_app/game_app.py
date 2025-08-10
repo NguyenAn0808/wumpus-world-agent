@@ -20,7 +20,7 @@ class GameApp:
         self.sound.play_music()
 
         # Call Screen
-        self.current_screen = MenuScreen(self)
+        self.current_screen = LoadingScreen(self)
         self.current_screen.run()
 
     def switch_screen(self, new_screen, auto_run=True):

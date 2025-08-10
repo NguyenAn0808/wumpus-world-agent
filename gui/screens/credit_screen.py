@@ -9,7 +9,7 @@ DESERT_SAND = (210, 180, 140)
 class CreditsScreen(Screen):
     def __init__(self, app):
         super().__init__(app)
-        self.message = "Wumpus World\nDeveloped by:\n23127102 - Le Quang Phuc\n23127148 - An Tien Nguyen An\n23127307 - Nguyen Pham Minh Thu\n23127442 - Tram Huu Nhan\n\nCSC14003 - Introduction to Artificial Intelligence\nSpecial thanks to:\nProf. Nguyen Ngoc Thao\nProf. Nguyen Tran Duy Minh" 
+        self.message = "Wumpus World\nDeveloped by:\n23127102 - Le Quang Phuc\n23127148 - An Tien Nguyen An\n23127307 - Nguyen Pham Minh Thu\n23127442 - Tram Huu Nhan\n\nCSC14003 - Introduction to Artificial Intelligence\nSpecial thanks to:\nMrs. Nguyen Ngoc Thao\nMr. Nguyen Tran Duy Minh" 
         self.font = pygame.font.SysFont("perpetua", 30)
 
         infoObject = pygame.display.Info()

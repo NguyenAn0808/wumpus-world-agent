@@ -6,7 +6,7 @@ class SoundManager:
         self.music_path = "gui/assets/music.mp3"
         self.music_playing = False
         self.sound_on = True
-        self.music_on = False
+        self.music_on = True
 
     def play_click(self):
         if self.sound_on:
