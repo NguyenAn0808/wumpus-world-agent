@@ -67,8 +67,11 @@ class PreviewMapScreen(Screen):
         self.world = World(
             size=self.map_size,
             number_of_wumpus=self.num_wumpus,
-            pit_prob=self.pit_prob
+            pit_prob=self.pit_prob,
+            debug_map=False
         )
+
+        
 
     def setup_ui(self): 
         self.buttons = []
