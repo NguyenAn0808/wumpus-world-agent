@@ -2,9 +2,9 @@ from simulation import *
 
 AGENT_TYPE = "Hybrid" # Random
 
-MAP_SIZE = 4
-PIT_PROBABILITY = 0.1
-NUMBER_OF_WUMPUS = 1
+MAP_SIZE = 8
+PIT_PROBABILITY = 0.2
+NUMBER_OF_WUMPUS = 2
 NUMBER_OF_GOLD = 1
 
 SCORES = {
