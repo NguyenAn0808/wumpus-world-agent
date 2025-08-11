@@ -301,10 +301,10 @@ class HybridAgent(Agent):
                 print("Plan: Confirmed Wumpus. Executing safe shot.\n")
                 return 
         
-            print("Plan: No moves left, even desperate ones. Considering a risky shot.\n") # Option 4.2 (risky shot)
-            self.decide_risky_shoot_action(kb, inference)
-            if self.planned_action:
-                return
+            if not unvisited_safe_cells:
+                if self.decide_risky_shoot_action(kb, inference):
+                    print("Plan: No safe moves. Executing risky shot.")
+                    return # Đã có kế hoạch bắn, chờ kết quả ở lượt sau
         
         # Option 5: Give up - return home
         print("Agent has no other options. Attempting to return home to climb out.\n")

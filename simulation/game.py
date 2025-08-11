@@ -115,6 +115,10 @@ class GamePlay:
 
         # --- SỬA ĐỔI LOGIC KIỂM TRA WUMPUS MOVE ---
         # Chỉ kiểm tra và xử lý Wumpus move nếu agent là AdvancedAgent
+        if self.agent.needs_full_rethink:
+            print("--- Agent needs to rethink due to a major event (e.g., shot). ---")
+            self.agent.planned_action.clear()
+            
         if isinstance(self.agent, AdvancedAgent) and self.agent.need_wumpus_move():
             if not self.handle_Wumpus_move():
                 self.check_game_status()
