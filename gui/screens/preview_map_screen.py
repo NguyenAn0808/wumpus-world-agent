@@ -71,8 +71,6 @@ class PreviewMapScreen(Screen):
             debug_map=False
         )
 
-        
-
     def setup_ui(self): 
         self.buttons = []
         x, y = self.width / 2 + 150, self.height / 2 - 130
