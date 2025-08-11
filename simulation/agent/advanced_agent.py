@@ -43,7 +43,7 @@ class AdvancedAgent(HybridAgent):
 
     def need_wumpus_move(self) -> bool:
         """Kiểm tra xem Wumpus có sắp di chuyển không."""
-        return self.action_count > 0 and self.action_count % WUMPUS_MOVE_INTERVAL == 0
+        return self.action_count > 0 and (self.action_count + 1) % WUMPUS_MOVE_INTERVAL == 0
 
     def activate_dynamic_mode(self):
         """Kích hoạt chế độ động khi Wumpus di chuyển lần đầu."""
