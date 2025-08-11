@@ -535,108 +535,113 @@ class SolverScreen(Screen):
         self.handle_input()
         self.render_with_dt(dt)
 
-    def update_animation(self, dt):
-    # Get current direction
-        agent_dir_enum = self.map_state['agent_direction']
-        agent_dir = agent_dir_enum.name.lower() if agent_dir_enum else 'right'
-
-        # --- Wumpus idle ---
-        self.wumpus_frame_timer += dt
-        if self.wumpus_frame_timer >= self.wumpus_frame_delay:
-            self.wumpus_frame_timer = 0.0
-            self.wumpus_frame_index = (self.wumpus_frame_index + 1) % len(self.wumpus_idle_frames)
-
-        # --- Agent walking ---
-        direction = DIRECTION_TO_ANIMATION.get(agent_dir, 'right')
-        frames = self.agent_animations.get(direction, [])
-        if frames:
-            self.agent_frame_timer += dt
-            if self.agent_frame_timer >= self.agent_frame_delay:
-                self.agent_frame_timer = 0.0
-                self.agent_frame = (self.agent_frame + 1) % len(frames)
-
-        # --- Turning ---
-        if not self.turning and agent_dir != self.last_agent_dir:
-            transition_lookup = {
-                ('left', 'right'): 'down',
-                ('right', 'left'): 'up',
-                ('up', 'down'): 'right',
-                ('down', 'up'): 'left',
-            }
-            mid = transition_lookup.get((self.last_agent_dir, agent_dir))
-            if mid:
-                self.turning = True
-                self.turn_timer = 0.0
-                self.turn_mid_frame = mid
-                self.next_direction = agent_dir
-
-        if self.turning:
-            self.turn_timer += dt
-            if self.turn_timer >= self.turn_duration:
-                self.turning = False
-                self.last_agent_dir = self.next_direction
-
-        self.last_agent_dir = agent_dir
-
-        # --- GRAB animation trigger ---
-        if self.last_action == "GRAB":
-            self.grab_anim_timer = self.grab_anim_duration
-
-        # --- SHOOT animation trigger ---
-        if self.last_action == "SHOOT":
-            if self.shoot_anim_timer <= 0 and not self.arrow_animation["active"]:
-                if self.shoot_path:
-                    # Start arrow animation now
-                    self.arrow_animation.update({
-                        "active": True,
-                        "path": self.shoot_path.copy(),
-                        "current_index": 0,
-                        "progress": 0.0,
-                        "direction": agent_dir
-                    })
-
-        # Reset last_action only when arrow is done
-        if self.last_action == "SHOOT" and not self.arrow_animation["active"] and self.shoot_anim_timer <= 0:
-            self.last_action = None
-
-
-    def animate_arrow(self, dt, cell_size, top_left):
-        anim = self.arrow_animation
-        path = anim.get("path")
-        if not path or anim["current_index"] >= len(path):
-            anim["active"] = False
-            return
-
-        anim["progress"] += anim["speed"] * dt
-
-        # Move to next cell if enough progress
-        if anim["progress"] >= 1.0:
-            anim["progress"] = 0.0
-            anim["current_index"] += 1
-
-        # Stop if finished
-        if anim["current_index"] >= len(path):
-            anim["active"] = False
-            return
-
-        pos = path[anim["current_index"]]
-        visited_cells_coords = {(p.x, p.y) for p in self.gameloop.agent.visited_cells}
-    
-        arrow_cell_coords = (pos.x, pos.y)
-
-        if arrow_cell_coords in visited_cells_coords:
-            pixel_x = top_left[0] + pos.x * cell_size
-            pixel_y = top_left[1] + (self.map_state["size"] - 1 - pos.y) * cell_size
-
-            arrow_img = pygame.transform.scale(self.arrow_icon, (cell_size, cell_size))
-            rotation = {
-                'north': 90, 'south': -90, 'west': 180, 'east': 0
-            }.get(self.arrow_animation["direction"], 0) 
+        self.auto_solve_timer += dt
+        if self.auto_solve_timer >= self.auto_solve_delay and not self.map_state.get('stop_game', False):
+            self.auto_solve_timer = 0.0
+            self.auto_solve_step()
             
-            rotated = pygame.transform.rotate(arrow_img, rotation)
+    # def update_animation(self, dt):
+    # # Get current direction
+    #     agent_dir_enum = self.map_state['agent_direction']
+    #     agent_dir = agent_dir_enum.name.lower() if agent_dir_enum else 'right'
+
+    #     # --- Wumpus idle ---
+    #     self.wumpus_frame_timer += dt
+    #     if self.wumpus_frame_timer >= self.wumpus_frame_delay:
+    #         self.wumpus_frame_timer = 0.0
+    #         self.wumpus_frame_index = (self.wumpus_frame_index + 1) % len(self.wumpus_idle_frames)
+
+    #     # --- Agent walking ---
+    #     direction = DIRECTION_TO_ANIMATION.get(agent_dir, 'right')
+    #     frames = self.agent_animations.get(direction, [])
+    #     if frames:
+    #         self.agent_frame_timer += dt
+    #         if self.agent_frame_timer >= self.agent_frame_delay:
+    #             self.agent_frame_timer = 0.0
+    #             self.agent_frame = (self.agent_frame + 1) % len(frames)
+
+    #     # --- Turning ---
+    #     if not self.turning and agent_dir != self.last_agent_dir:
+    #         transition_lookup = {
+    #             ('left', 'right'): 'down',
+    #             ('right', 'left'): 'up',
+    #             ('up', 'down'): 'right',
+    #             ('down', 'up'): 'left',
+    #         }
+    #         mid = transition_lookup.get((self.last_agent_dir, agent_dir))
+    #         if mid:
+    #             self.turning = True
+    #             self.turn_timer = 0.0
+    #             self.turn_mid_frame = mid
+    #             self.next_direction = agent_dir
+
+    #     if self.turning:
+    #         self.turn_timer += dt
+    #         if self.turn_timer >= self.turn_duration:
+    #             self.turning = False
+    #             self.last_agent_dir = self.next_direction
+
+    #     self.last_agent_dir = agent_dir
+
+    #     # --- GRAB animation trigger ---
+    #     if self.last_action == "GRAB":
+    #         self.grab_anim_timer = self.grab_anim_duration
+
+    #     # --- SHOOT animation trigger ---
+    #     if self.last_action == "SHOOT":
+    #         if self.shoot_anim_timer <= 0 and not self.arrow_animation["active"]:
+    #             if self.shoot_path:
+    #                 # Start arrow animation now
+    #                 self.arrow_animation.update({
+    #                     "active": True,
+    #                     "path": self.shoot_path.copy(),
+    #                     "current_index": 0,
+    #                     "progress": 0.0,
+    #                     "direction": agent_dir
+    #                 })
+
+    #     # Reset last_action only when arrow is done
+    #     if self.last_action == "SHOOT" and not self.arrow_animation["active"] and self.shoot_anim_timer <= 0:
+    #         self.last_action = None
+
+
+    # def animate_arrow(self, dt, cell_size, top_left):
+    #     anim = self.arrow_animation
+    #     path = anim.get("path")
+    #     if not path or anim["current_index"] >= len(path):
+    #         anim["active"] = False
+    #         return
+
+    #     anim["progress"] += anim["speed"] * dt
+
+    #     # Move to next cell if enough progress
+    #     if anim["progress"] >= 1.0:
+    #         anim["progress"] = 0.0
+    #         anim["current_index"] += 1
+
+    #     # Stop if finished
+    #     if anim["current_index"] >= len(path):
+    #         anim["active"] = False
+    #         return
+
+    #     pos = path[anim["current_index"]]
+    #     visited_cells_coords = {(p.x, p.y) for p in self.gameloop.agent.visited_cells}
+    
+    #     arrow_cell_coords = (pos.x, pos.y)
+
+    #     if arrow_cell_coords in visited_cells_coords:
+    #         pixel_x = top_left[0] + pos.x * cell_size
+    #         pixel_y = top_left[1] + (self.map_state["size"] - 1 - pos.y) * cell_size
+
+    #         arrow_img = pygame.transform.scale(self.arrow_icon, (cell_size, cell_size))
+    #         rotation = {
+    #             'north': 90, 'south': -90, 'west': 180, 'east': 0
+    #         }.get(self.arrow_animation["direction"], 0) 
+            
+    #         rotated = pygame.transform.rotate(arrow_img, rotation)
           
-            rect = rotated.get_rect(center=(pixel_x + cell_size // 2, pixel_y + cell_size // 2))
-            self.screen.blit(rotated, rect.topleft)
+    #         rect = rotated.get_rect(center=(pixel_x + cell_size // 2, pixel_y + cell_size // 2))
+    #         self.screen.blit(rotated, rect.topleft)
 
     def render_with_dt(self, dt):
         self.update_animation(dt)
@@ -683,21 +688,130 @@ class SolverScreen(Screen):
             self.auto_solve_timer = 0.0
             self.auto_solve_step()
 
+        
+    # 2. Simplify the run() method:
     def run(self):
         self.running = True
         while self.running:
-            self.handle_input()
-            self.render()
+            self.render()  # This now handles everything including timing
             pygame.display.flip()
-            self.app.clock.tick(60)
-
+            
             # Stop if game is done
             if self.map_state.get('stop_game', False):
                 self.running = False
-                return  # or switch to menu
+                return
 
-            # Solver step
-            self.auto_solve_timer += self.clock.get_time() / 1000.0
-            if self.auto_solve_timer >= self.auto_solve_delay:
-                self.auto_solve_timer = 0.0
-                self.auto_solve_step()
+    # 3. Add frame rate capping to arrow animation for smoother movement:
+    def animate_arrow(self, dt, cell_size, top_left):
+        anim = self.arrow_animation
+        path = anim.get("path")
+        if not path or anim["current_index"] >= len(path):
+            anim["active"] = False
+            return
+
+        # Cap the dt to prevent huge jumps when frame rate drops
+        capped_dt = min(dt, 1.0/30.0)  # Don't allow dt larger than 30fps frame
+        anim["progress"] += anim["speed"] * capped_dt
+
+        # Move to next cell if enough progress
+        if anim["progress"] >= 1.0:
+            anim["progress"] = 0.0
+            anim["current_index"] += 1
+
+        # Stop if finished
+        if anim["current_index"] >= len(path):
+            anim["active"] = False
+            return
+
+        pos = path[anim["current_index"]]
+        visited_cells_coords = {(p.x, p.y) for p in self.gameloop.agent.visited_cells}
+
+        arrow_cell_coords = (pos.x, pos.y)
+
+        if arrow_cell_coords in visited_cells_coords:
+            pixel_x = top_left[0] + pos.x * cell_size
+            pixel_y = top_left[1] + (self.map_state["size"] - 1 - pos.y) * cell_size
+
+            arrow_img = pygame.transform.scale(self.arrow_icon, (cell_size, cell_size))
+            rotation = {
+                'north': 90, 'south': -90, 'west': 180, 'east': 0
+            }.get(self.arrow_animation["direction"], 0) 
+            
+            rotated = pygame.transform.rotate(arrow_img, rotation)
+        
+            rect = rotated.get_rect(center=(pixel_x + cell_size // 2, pixel_y + cell_size // 2))
+            self.screen.blit(rotated, rect.topleft)
+
+    # 4. Also cap dt in update_animation for consistent frame animation:
+    def update_animation(self, dt):
+        # Cap dt to prevent animation skipping
+        capped_dt = min(dt, 1.0/30.0)
+        
+        # Get current direction
+        agent_dir_enum = self.map_state['agent_direction']
+        agent_dir = agent_dir_enum.name.lower() if agent_dir_enum else 'right'
+
+        # --- Wumpus idle ---
+        self.wumpus_frame_timer += capped_dt
+        if self.wumpus_frame_timer >= self.wumpus_frame_delay:
+            self.wumpus_frame_timer = 0.0
+            self.wumpus_frame_index = (self.wumpus_frame_index + 1) % len(self.wumpus_idle_frames)
+
+        # --- Agent walking ---
+        direction = DIRECTION_TO_ANIMATION.get(agent_dir, 'right')
+        frames = self.agent_animations.get(direction, [])
+        if frames:
+            self.agent_frame_timer += capped_dt
+            if self.agent_frame_timer >= self.agent_frame_delay:
+                self.agent_frame_timer = 0.0
+                self.agent_frame = (self.agent_frame + 1) % len(frames)
+
+        # --- Turning ---
+        if not self.turning and agent_dir != self.last_agent_dir:
+            transition_lookup = {
+                ('left', 'right'): 'down',
+                ('right', 'left'): 'up',
+                ('up', 'down'): 'right',
+                ('down', 'up'): 'left',
+            }
+            mid = transition_lookup.get((self.last_agent_dir, agent_dir))
+            if mid:
+                self.turning = True
+                self.turn_timer = 0.0
+                self.turn_mid_frame = mid
+                self.next_direction = agent_dir
+
+        if self.turning:
+            self.turn_timer += capped_dt
+            if self.turn_timer >= self.turn_duration:
+                self.turning = False
+                self.last_agent_dir = self.next_direction
+
+        self.last_agent_dir = agent_dir
+
+        # --- GRAB animation trigger ---
+        if self.last_action == "GRAB":
+            self.grab_anim_timer = self.grab_anim_duration
+
+        # --- SHOOT animation trigger ---
+        if self.last_action == "SHOOT":
+            if self.shoot_anim_timer <= 0 and not self.arrow_animation["active"]:
+                if self.shoot_path:
+                    # Start arrow animation now
+                    self.arrow_animation.update({
+                        "active": True,
+                        "path": self.shoot_path.copy(),
+                        "current_index": 0,
+                        "progress": 0.0,
+                        "direction": agent_dir
+                    })
+
+        # Update shoot/grab timers with capped dt
+        if self.shoot_anim_timer > 0:
+            self.shoot_anim_timer -= capped_dt
+        if self.grab_anim_timer > 0:
+            self.grab_anim_timer -= capped_dt
+
+        # Reset last_action only when arrow is done
+        if self.last_action == "SHOOT" and not self.arrow_animation["active"] and self.shoot_anim_timer <= 0:
+            self.last_action = None
