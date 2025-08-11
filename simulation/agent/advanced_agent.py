@@ -74,6 +74,9 @@ class AdvancedAgent(HybridAgent):
         if cell == self.recently_retreated_from:
             return 500.0
         
+        if cell in self.proven_wumpuses: 
+            return 1000.0
+
         # --- THÊM KIỂM TRA "TRÍ NHỚ MỜ DẦN" ---
         # Nếu một ô hoặc hàng xóm của nó nằm trong danh sách nghi ngờ cao độ,
         # rủi ro của nó sẽ tăng vọt.
@@ -122,9 +125,12 @@ class AdvancedAgent(HybridAgent):
         if not uncertain_cells:
             return None
         
-        best_cell = min(uncertain_cells, key=lambda c: self.get_heuristic_risk_score(c))
+        pit_safe_uncertain_cells = [c for c in uncertain_cells if c in self.safe_cells]
+        if not pit_safe_uncertain_cells: 
+            return None
+
+        best_cell = min(pit_safe_uncertain_cells, key=lambda c: self.get_heuristic_risk_score(c))
         
-        # Chỉ đi vào nếu rủi ro không quá lớn (ví dụ < 200)
         if self.get_heuristic_risk_score(best_cell) < 200:
             return best_cell
         return None
@@ -157,18 +163,10 @@ class AdvancedAgent(HybridAgent):
                 
                 if action == Action.MOVE_FORWARD:
                     next_cell = current_pos + DIRECTION_VECTORS[current_dir]
-                     # Logic di chuyển của Hybrid (chế độ tĩnh)
-                    can_move_static = is_valid(next_cell, self.map_size) and \
-                                      (next_cell in goals or \
-                                       next_cell in self.safe_cells or \
-                                       next_cell in self.visited_cells)
+                    can_move = is_valid(next_cell, self.map_size) and \
+                               (next_cell in self.safe_cells or next_cell in self.visited_cells)
                     
-                    # Logic di chuyển của Advanced (chế độ động)
-                    can_move_dynamic = is_valid(next_cell, self.map_size) and \
-                                       next_cell not in self.proven_pits
-
-                    if (self.dynamic_mode_activated and not can_move_dynamic) or \
-                       (not self.dynamic_mode_activated and not can_move_static):
+                    if not can_move:
                         continue
                     
                     new_pos = next_cell
@@ -241,6 +239,7 @@ class AdvancedAgent(HybridAgent):
         if self.has_arrow:
             if self.decide_safe_shoot_action(kb, inference):
                 return
+            
             if not unvisited_safe_cells:
                  self.decide_risky_shoot_action(kb, inference)
                  if self.planned_action: return

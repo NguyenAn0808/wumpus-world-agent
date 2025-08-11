@@ -294,7 +294,7 @@ class HybridAgent(Agent):
             self.explore_with_astar(unvisited_safe_cells)
             if self.planned_action:
                 return
-        
+            
         # Option 4: Shoot arrow
         if self.has_arrow:
             if self.decide_safe_shoot_action(kb, inference): # Option 4.1 (Shoot safely)
