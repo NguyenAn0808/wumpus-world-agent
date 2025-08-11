@@ -99,7 +99,7 @@ class GamePlay:
         if 'W' in self.world.state[self.agent.location.y][self.agent.location.x]:
              self.agent.alive = False
              self.status = GameStatus.DEAD_BY_WUMPUS
-             self.agent.score += SCORES["DEATH_WUMPUS"]
+            #  self.agent.score += SCORES["DEATH_WUMPUS"]
              self.message = f"Agent at {self.agent.location} was eaten by a moving Wumpus!"
              return False 
         
