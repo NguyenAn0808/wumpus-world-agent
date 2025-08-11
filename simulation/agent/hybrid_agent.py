@@ -91,6 +91,30 @@ class HybridAgent(Agent):
         
         return False
     
+    def calculate_shoot_direction_score(self, direction: Direction, suspicious_cells: set[Point]) -> float:
+        """
+        Tính điểm cho một hướng bắn dựa trên:
+        +1.0 điểm cho mỗi ô đáng ngờ trên đường đạn.
+        +0.1 điểm cho mỗi ô chưa khám phá trên đường đạn (thu thập thông tin).
+        -0.01 điểm cho mỗi hành động quay người cần thiết.
+        """
+        score = 0.0
+        path_pos = self.location + DIRECTION_VECTORS[direction]
+        
+        while is_valid(path_pos, self.map_size):
+            if path_pos in suspicious_cells:
+                score += 1.0  # Điểm cao cho việc bắn vào mục tiêu nghi ngờ
+            elif path_pos not in self.visited_cells:
+                score += 0.1  # Điểm thưởng nhỏ cho việc khám phá thông tin mới
+            
+            path_pos += DIRECTION_VECTORS[direction]
+
+        # Trừ điểm chi phí cho việc quay người
+        turn_cost = len(self.get_turn_decision(self.direction, direction))
+        score -= turn_cost * 0.01
+        
+        return score
+    
     def decide_risky_shoot_action(self, kb: KB, inference: InferenceEngine):
         """
         There is no decision more -> We have to shoot optimally.
@@ -100,79 +124,76 @@ class HybridAgent(Agent):
         Option 2: Shoot in a random direction which costs the least.
         """
         if self.planned_action or not self.has_arrow:
-            return
+            return False
         
         uncertain_cells = self.get_uncertain_cells()
-
-        primary_cells = set() # Just doubt about Wumpus
-        secondary_cells = set() # Doubt about (Wumpus, Pit)
-
+        suspicious_cells = set()
         for cell in uncertain_cells:
-            # KB entail alpha => KB ^ not aplha -> true (so if False -> not proven safe)
-            is_proven_safe = inference.ask_Wumpus(kb.wumpus_rules, Literal(f"W{cell.x}{cell.y}", negated=True))
-
-            if not (not is_proven_safe): # Safe cell
-                continue
-            
-            is_proven_safe = inference.ask_Pit(kb.pit_rules, Literal(f"P{cell.x}{cell.y}", negated=True))
-
-            is_pit_suspect = not is_proven_safe
-
-            if not is_pit_suspect:
-                primary_cells.add(cell) # W
-            else:
-                secondary_cells.add(cell) # (W, P)
-            
-        target = primary_cells if primary_cells else secondary_cells
-
-        if not target:
-            print("No suitable Wumpus suspects to shoot at.")
-            return 
+            # Một ô đáng ngờ là ô có thể có Wumpus
+            is_wumpus_possible = not inference.ask_Wumpus(kb.wumpus_rules, Literal(f"W{cell.x}{cell.y}", negated=True))
+            if is_wumpus_possible:
+                suspicious_cells.add(cell)
         
-        # Best direction to shoot
-        direction_count = {d: 0 for d in Direction}
+        # --- PHẦN LOGIC LỰA CHỌN HƯỚNG BẮN ĐƯỢC THAY THẾ ---
 
-        for cell in target:
-            direction = self.get_direction_to_target(cell)
-            if direction:
-                direction_count[direction] += 1
+        if not suspicious_cells:
+            print("No suitable Wumpus suspects to shoot at. Considering shooting to explore.")
+            # Nếu không có ô nào nghi ngờ có Wumpus, vẫn có thể bắn để dọn đường
+            # Mục tiêu lúc này chỉ là thu thập thông tin
+            suspicious_cells = set() # Đảm bảo target rỗng
 
-        max_count = max(direction_count.values()) if direction_count else 0
+        best_direction = None
+        max_score = -float('inf')
 
-        shooting_direction = None
-        if max_count > 0:
-            # Logic cũ: Tìm hướng tốt nhất dựa trên số lượng ô đáng ngờ
-            best_directions = [d for d, count in direction_count.items() if count == max_count]
-            if len(best_directions) > 1:
-                best_directions.sort(key=lambda d: len(self.get_turn_decision(self.direction, d)))
-            shooting_direction = best_directions[0]
-            print(f"Agent identified best risky shot direction: {shooting_direction.name}")
+        # Duyệt qua tất cả các hướng có thể bắn
+        for direction in Direction:
+            if not is_valid(self.location + DIRECTION_VECTORS[direction], self.map_size):
+                continue # Bỏ qua nếu hướng đó là tường
+
+            # Tính điểm cho hướng hiện tại
+            score = 0.0
+            path_pos = self.location + DIRECTION_VECTORS[direction]
+            
+            while is_valid(path_pos, self.map_size):
+                if path_pos in suspicious_cells:
+                    score += 1.0  # +1.0 điểm cho mỗi ô đáng ngờ
+                elif path_pos not in self.visited_cells:
+                    score += 0.1  # +0.1 điểm cho mỗi ô chưa khám phá
+                
+                path_pos += DIRECTION_VECTORS[direction]
+
+            # Trừ điểm chi phí cho việc quay người
+            turn_cost = len(self.get_turn_decision(self.direction, direction))
+            score -= turn_cost * 0.01
+            
+            # Cập nhật hướng tốt nhất
+            if score > max_score:
+                max_score = score
+                best_direction = direction
+
+        # Chỉ bắn nếu tìm thấy một hướng có lợi (điểm > 0)
+        if best_direction and max_score > 0:
+            print(f"Agent identified best risky shot direction: {best_direction.name} with score {max_score:.2f}")
+            turn_actions = self.get_turn_decision(self.direction, best_direction)
+            self.planned_action.extend(turn_actions)
+            self.planned_action.append(Action.SHOOT)
+            return True
         else:
-            print("No optimal shooting direction found. Random shot regarding to least cost")
-        
-            possible_shot_directions = []
-            for direction, vec in DIRECTION_VECTORS.items():
-                if is_valid(self.location + vec, self.map_size):
-                    possible_shot_directions.append(direction)
-
+            # Fallback: Nếu không có hướng nào có lợi, bắn theo hướng tốn ít lượt quay nhất để lấy thông tin
+            print("No beneficial direction found. Shooting towards least-cost direction for info.")
+            possible_shot_directions = [d for d, v in DIRECTION_VECTORS.items() if is_valid(self.location + v, self.map_size)]
             if not possible_shot_directions:
                 print("Agent is completely boxed in by walls. Cannot shoot.")
-                return # Không thể bắn
-
-            # Sắp xếp các hướng khả thi theo số lần quay ít nhất
-            possible_shot_directions.sort(key=lambda d: len(self.get_turn_decision(self.direction, d)))
+                return False
             
-            # Chọn hướng cần ít lần quay nhất
+            possible_shot_directions.sort(key=lambda d: len(self.get_turn_decision(self.direction, d)))
             shooting_direction = possible_shot_directions[0]
-            print(f"Agent will shoot towards {shooting_direction.name} to gather information.")
-
-        if shooting_direction:
+            
             turn_actions = self.get_turn_decision(self.direction, shooting_direction)
             self.planned_action.extend(turn_actions)
             self.planned_action.append(Action.SHOOT)
-
-            print(f"Agent is stuck. Planning a risky shot towards {shooting_direction.name}. Plan: {[a.name for a in self.planned_action]}")
-
+            return True
+        
     def calculate_heuristic(self, pos: Point, goals: list) -> int:
         if not goals: 
             return float('inf')
@@ -294,7 +315,7 @@ class HybridAgent(Agent):
             self.explore_with_astar(unvisited_safe_cells)
             if self.planned_action:
                 return
-            
+
         # Option 4: Shoot arrow
         if self.has_arrow:
             if self.decide_safe_shoot_action(kb, inference): # Option 4.1 (Shoot safely)
