@@ -73,6 +73,17 @@ class GamePlay:
             else:
                 self.message = "Agent cannot climb out from here."
 
+        if self.stop_game:
+            self.message = f"Final Score : {self.agent.score}"
+            print(f"--- {self.message} ---")
+
+            self.message = f"Agent's Path History: {len(self.agent.path_history)}"
+            print(f"--- {self.message} ---")
+
+            path_str = " -> ".join([f"({p.x},{p.y})" for p in self.agent.path_history])
+            self.message = f"Final Path : {path_str}"
+            print(f"--- {self.message} ---")
+
     def display_current_state(self):
         if self.display_callback:
             self.display_callback(self.get_game_state())
@@ -118,7 +129,7 @@ class GamePlay:
         if self.agent.needs_full_rethink:
             print("--- Agent needs to rethink due to a major event (e.g., shot). ---")
             self.agent.planned_action.clear()
-            
+
         if isinstance(self.agent, AdvancedAgent) and self.agent.need_wumpus_move():
             if not self.handle_Wumpus_move():
                 self.check_game_status()
@@ -274,12 +285,4 @@ class GamePlay:
             self.last_shot_path = shot_path
         elif action == Action.CLIMB_OUT:
             self.agent.climb_out()
-            self.message = f"Final Score : {self.agent.score}"
-            print(f"--- {self.message} ---")
-
-            self.message = f"Agent's Path History: {len(self.agent.path_history)}"
-            print(f"--- {self.message} ---")
-
-            path_str = " -> ".join([f"({p.x},{p.y})" for p in self.agent.path_history])
-            self.message = f"Final Path : {path_str}"
-            print(f"--- {self.message} ---")
+            

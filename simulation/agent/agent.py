@@ -106,10 +106,10 @@ class Agent(ABC):
 
     def climb_out(self):
         self.last_action = Action.CLIMB_OUT
-        if self.has_gold:
-            self.score += SCORES["CLIMB_SUCCESS"]
-        else:
-            self.score += SCORES["CLIMB_FAIL"]
+        # if self.has_gold:
+        #     self.score += SCORES["CLIMB_SUCCESS"]
+        # else:
+        #     self.score += SCORES["CLIMB_FAIL"]
 
     def __str__(self):
         return f"Agent({self.location}, {DIRECTION_NAMES[self.direction]}, Arrow={self.has_arrow}, Gold={self.has_gold})"
