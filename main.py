@@ -5,6 +5,9 @@ from config import INITIAL_AGENT_LOCATION, INITIAL_AGENT_DIRECTION, MAP_SIZE
 
 def main():
     # GUI
+    # agent = HybridAgent(INITIAL_AGENT_LOCATION, INITIAL_AGENT_DIRECTION, MAP_SIZE)
+    # game = GamePlay(agent = agent, display_callback = display_world)
+    # game.run_console()
     game = GameApp()
 
 if __name__ == "__main__":

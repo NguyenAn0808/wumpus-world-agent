@@ -18,6 +18,8 @@ class Agent(ABC):
         self.planned_action = deque()
         self.score = 0            
 
+        self.path_history: list[Point] = [location]
+
         self.visited_cells: set[Point] = {location}
 
         self.frontier_cells: set[Point] = {
@@ -68,12 +70,13 @@ class Agent(ABC):
         self.location = new_location
         self.visited_cells.add(new_location)
 
-        self.frontier_cells.discard(new_location)
+        self.path_history.append(new_location)
 
         for neighbor, _ in self.get_neighbors(new_location):
             if neighbor not in self.visited_cells:
                 self.frontier_cells.add(neighbor)
 
+        self.frontier_cells.discard(new_location)
         self.last_action = Action.MOVE_FORWARD
 
     def turn_left(self):
