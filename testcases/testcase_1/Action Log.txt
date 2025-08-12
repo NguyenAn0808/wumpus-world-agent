@@ -1,0 +1,22 @@
+Move to (0, 1)
+Turn right
+Move to (1, 1)
+Turn left
+Move to (1, 2)
+Turn left
+Move to (0, 2)
+Turn right
+Move to (0, 3)
+Move to (0, 4)
+Turn right
+Move to (1, 4)
+Turn right
+Move to (1, 3)
+ Grab gold!
+Turn right
+Move to (0, 3)
+Turn left
+Move to (0, 2)
+Move to (0, 1)
+Move to (0, 0)
+ Climb out!
