@@ -52,7 +52,6 @@ class GamePlay:
         return game_state
 
     def check_game_status(self):
-        # Giữ nguyên, không cần thay đổi
         location = self.agent.location
         cell = self.world.state[location.y][location.x]
         if 'W' in cell:
@@ -103,11 +102,8 @@ class GamePlay:
              self.message = f"Agent at {self.agent.location} was eaten by a moving Wumpus!"
              return False 
         
-        # --- THÊM LOGIC CHO ADVANCED AGENT ---
         if isinstance(self.agent, AdvancedAgent):
-            # Kích hoạt chế độ động nếu đây là lần đầu
             self.agent.activate_dynamic_mode()
-            # Yêu cầu agent reset kiến thức Wumpus của nó
             self.agent.reset_wumpus_knowledge()
         
         # Xóa các sự thật về Stench khỏi KB logic
@@ -124,7 +120,6 @@ class GamePlay:
         if self.stop_game or not self.agent.alive:
             return
 
-        # --- SỬA ĐỔI LOGIC KIỂM TRA WUMPUS MOVE ---
         # Chỉ kiểm tra và xử lý Wumpus move nếu agent là AdvancedAgent
         if self.agent.needs_full_rethink:
             print("--- Agent needs to rethink due to a major event (e.g., shot). ---")
@@ -152,7 +147,6 @@ class GamePlay:
             next_action = self.agent.planned_action.popleft()
             self.excute_action(next_action)
 
-            # --- SỬA ĐỔI LOGIC GỌI AFTER_ACTION ---
             # Chỉ gọi after_action nếu agent là AdvancedAgent
             if isinstance(self.agent, AdvancedAgent):
                 self.agent.after_action()

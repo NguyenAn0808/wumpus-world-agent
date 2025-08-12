@@ -18,11 +18,10 @@ class AdvancedAgent(HybridAgent):
         self.percepts_at: dict[Point, set[Percept]] = {}
         self.RISK_WEIGHT = 10
 
-        # --- CỜ TRẠNG THÁI CHẾ ĐỘ ---
         self.dynamic_mode_activated = False
         self.highly_suspicious_cells: set[Point] = set() 
         
-        # --- CƠ CHẾ CHỐNG LẶP (chỉ dùng ở chế độ động) ---
+        # Avoid inf loop 
         self.recently_retreated_from: Point = None
         self.retreat_cooldown_timer = 0
         self.RETREAT_COOLDOWN = 3 
@@ -77,7 +76,6 @@ class AdvancedAgent(HybridAgent):
         if cell in self.proven_wumpuses: 
             return 1000.0
 
-        # --- THÊM KIỂM TRA "TRÍ NHỚ MỜ DẦN" ---
         # Nếu một ô hoặc hàng xóm của nó nằm trong danh sách nghi ngờ cao độ,
         # rủi ro của nó sẽ tăng vọt.
         wumpus_memory_risk = 0
@@ -89,11 +87,9 @@ class AdvancedAgent(HybridAgent):
                     wumpus_memory_risk = 200 # Phạt nặng nếu nó ở gần một ô bị nghi ngờ
                     break
 
-        # ... (logic tính điểm heuristic cũ giữ nguyên) ...
         if cell in self.visited_cells or cell in self.safe_cells:
             pit_score = 0
         else:
-            # ... (tính pit_score như cũ) ...
             pit_score = 0
             safety_score_pit = 0
             for neighbor_pos, _ in self.get_neighbors(cell):
@@ -174,7 +170,7 @@ class AdvancedAgent(HybridAgent):
                 elif action == Action.TURN_RIGHT: new_dir = TURN_RIGHT_MAP[current_dir]
                 
                 move_cost = 1
-                # CHỈ TÍNH RỦI RO KHI Ở CHẾ ĐỘ ĐỘNG
+
                 if self.dynamic_mode_activated:
                     move_cost += self.get_heuristic_risk_score(new_pos) * self.RISK_WEIGHT
                 
@@ -203,7 +199,6 @@ class AdvancedAgent(HybridAgent):
             super().choose_next_decision(kb, inference)
             return
 
-        # --- TỪ ĐÂY TRỞ ĐI LÀ LOGIC CỦA CHẾ ĐỘ ĐỘNG ---
         print("--- Operating in Dynamic Mode (using heuristic risk assessment) ---")
         
         # Chiến lược rút lui khi Wumpus sắp di chuyển

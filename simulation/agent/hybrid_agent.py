@@ -134,8 +134,6 @@ class HybridAgent(Agent):
             if is_wumpus_possible:
                 suspicious_cells.add(cell)
         
-        # --- PHẦN LOGIC LỰA CHỌN HƯỚNG BẮN ĐƯỢC THAY THẾ ---
-
         if not suspicious_cells:
             print("No suitable Wumpus suspects to shoot at. Considering shooting to explore.")
             # Nếu không có ô nào nghi ngờ có Wumpus, vẫn có thể bắn để dọn đường
