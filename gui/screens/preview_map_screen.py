@@ -13,6 +13,7 @@ class PreviewMapScreen(Screen):
     def __init__(self, app, mode):
         super().__init__(app)
         self.mode = mode
+
         self.screen = app.screen
         self.width, self.height = self.screen.get_size()
         pygame.display.set_icon(pygame.image.load("gui/assets/logo.png"))
@@ -157,8 +158,15 @@ class PreviewMapScreen(Screen):
         return pygame.Rect(x, y, w, h)
 
     def draw_controls(self):
+        if self.mode == "hybrid":
+            mode = "Hybrid"
+        elif self.mode == "random":
+            mode = "Random"
+        elif self.mode == "advanced":
+            mode = "Advanced"
+            
         x, y = self.width / 2 + 150, self.height / 2 - 130
-        self.draw_text("Mode", self.mode, x, y)
+        self.draw_text("Mode", mode, x, y)
         y += 60
         self.draw_text("Map Size", self.map_size, x, y)
         y += 60

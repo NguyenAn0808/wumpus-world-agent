@@ -728,19 +728,19 @@ class SolverScreen(Screen):
 
         arrow_cell_coords = (pos.x, pos.y)
 
-        if arrow_cell_coords in visited_cells_coords:
-            pixel_x = top_left[0] + pos.x * cell_size
-            pixel_y = top_left[1] + (self.map_state["size"] - 1 - pos.y) * cell_size
-
-            arrow_img = pygame.transform.scale(self.arrow_icon, (cell_size, cell_size))
-            rotation = {
-                'north': 90, 'south': -90, 'west': 180, 'east': 0
-            }.get(self.arrow_animation["direction"], 0) 
-            
-            rotated = pygame.transform.rotate(arrow_img, rotation)
         
-            rect = rotated.get_rect(center=(pixel_x + cell_size // 2, pixel_y + cell_size // 2))
-            self.screen.blit(rotated, rect.topleft)
+        pixel_x = top_left[0] + pos.x * cell_size
+        pixel_y = top_left[1] + (self.map_state["size"] - 1 - pos.y) * cell_size
+
+        arrow_img = pygame.transform.scale(self.arrow_icon, (cell_size, cell_size))
+        rotation = {
+            'north': 90, 'south': -90, 'west': 180, 'east': 0
+        }.get(self.arrow_animation["direction"], 0) 
+        
+        rotated = pygame.transform.rotate(arrow_img, rotation)
+
+        rect = rotated.get_rect(center=(pixel_x + cell_size // 2, pixel_y + cell_size // 2))
+        self.screen.blit(rotated, rect.topleft)
 
     # 4. Also cap dt in update_animation for consistent frame animation:
     def update_animation(self, dt):
